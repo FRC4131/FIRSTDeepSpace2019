@@ -14,9 +14,9 @@ public class Robot extends TimedRobot implements PIDOutput {
 	AHRS ahrs = new AHRS(SPI.Port.kMXP);
 
 	PIDController turnController;
-	final double kPTurn = 0.0135;
+	final double kPTurn = 0.0145;
 	final double kITurn = 0.00;
-	final double kDTurn = 0.1;
+	final double kDTurn = 0.03;
 	final double kToleranceDegrees = 2.0f;
 
     PIDController driveController;
@@ -77,13 +77,14 @@ public class Robot extends TimedRobot implements PIDOutput {
         if (Controller.getTriggerAxis(LeftHand) > 0.05 || Controller.getTriggerAxis(RightHand) > 0.05) {
             strafe();
             SnapToAngle();
-        } else if (isFieldCentric){
+        //} else if (Controller.getX(RightHand) > 0.2 || Controller.getX(RightHand) < -0.2) {
+          //  driveCentric();
+        } else if (isFieldCentric) {
             driveCentric();
             SnapToAngle();
         } else {
             driveStandard();
         }
-
 
         SmartDashboard.putNumber("X Displacement", ahrs.getDisplacementX());
         SmartDashboard.putNumber("Y Displacement", ahrs.getDisplacementY());
@@ -99,8 +100,15 @@ public class Robot extends TimedRobot implements PIDOutput {
 	    rotateToAngleRate = output;
 	}
 
-	public void Reset(){
-        if ( Controller.getRawButton(1)) {
+	public void Reset() {
+        if (Controller.getRawButton(1)) {
+            ahrs.reset();
+            turnController.setSetpoint(0);
+        }
+    }
+
+    public void tuningReset() {
+	    if (Controller.getBackButton()) {
             ahrs.reset();
         }
     }
@@ -149,6 +157,22 @@ public class Robot extends TimedRobot implements PIDOutput {
 	        return;
         }
 	}
+
+	public void turn() {
+	    if (Controller.getX(RightHand) > 0.2) {
+	        FrontLeft.set(Controller.getX(RightHand));
+	        BackLeft.set(Controller.getX(RightHand));
+	        FrontRight.set(Controller.getX(RightHand));
+	        BackRight.set(Controller.getX(RightHand));
+        } else if (Controller.getX(RightHand) < -0.2) {
+	        FrontLeft.set(-Controller.getX(RightHand));
+	        BackLeft.set(-Controller.getX(RightHand));
+	        FrontRight.set(-Controller.getX(RightHand));
+	        BackRight.set(-Controller.getX(RightHand));
+        } else {
+	        return;
+        }
+    }
 
     public void driveCentric(){
         myDrive.driveCartesian(Controller.getX(LeftHand), -Controller.getY(LeftHand),
