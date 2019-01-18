@@ -28,6 +28,10 @@ public class Robot extends TimedRobot implements PIDOutput {
     private boolean hadDoublePOV = false; // TODO: rename because a bit misleading
     private boolean isFieldCentric = true;
 
+    final static double kCollisionThreshold_DeltaG = 2f;
+    double last_world_linear_accel_x;
+    double last_world_linear_accel_y;
+
 	// Talons:
 	Talon FrontRight = new Talon(3);
 	Talon BackRight = new Talon(2);
@@ -62,7 +66,9 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void teleopInit(){
-		turnController.enable();
+        ahrs.reset();
+        turnController.setSetpoint(0);
+	    turnController.enable();
 	}
 
 	public void teleopPeriodic() {
@@ -70,9 +76,11 @@ public class Robot extends TimedRobot implements PIDOutput {
 
         centricToggle();
 
-        if (!ahrs.isConnected()) {
-            isFieldCentric = false;
-        }
+        collisionDetection();
+
+        //if (!ahrs.isConnected()) {
+          //  isFieldCentric = false;
+        //}
 
         if (Controller.getTriggerAxis(LeftHand) > 0.05 || Controller.getTriggerAxis(RightHand) > 0.05) {
             strafe();
@@ -80,6 +88,9 @@ public class Robot extends TimedRobot implements PIDOutput {
         //} else if (Controller.getX(RightHand) > 0.2 || Controller.getX(RightHand) < -0.2) {
           //  driveCentric();
         } else if (isFieldCentric) {
+            if (Math.sqrt(Math.pow(Controller.getX(RightHand), 2) + Math.pow(Controller.getY(RightHand), 2)) > 0.2) {
+                targetAngleCorrection();
+            }
             driveCentric();
             SnapToAngle();
         } else {
@@ -107,14 +118,8 @@ public class Robot extends TimedRobot implements PIDOutput {
         }
     }
 
-    public void tuningReset() {
-	    if (Controller.getBackButton()) {
-            ahrs.reset();
-        }
-    }
-
     public void centricToggle() {
-	    if (Controller.getStartButton()) {
+	    if (Controller.getStartButtonPressed()) {
 	        isFieldCentric = !isFieldCentric;
         } else {
 	        return;
@@ -140,23 +145,43 @@ public class Robot extends TimedRobot implements PIDOutput {
         }
     }
 
-    public void strafe(){
-	    if(Controller.getTriggerAxis(LeftHand) > 0.05 && Controller.getTriggerAxis(RightHand) > 0.05) {
-	        return;
-        } else if (Controller.getTriggerAxis(LeftHand) > 0.05) {
-	        FrontLeft.set(Controller.getTriggerAxis(LeftHand));
-	        BackLeft.set(-Controller.getTriggerAxis(LeftHand));
-	        FrontRight.set(Controller.getTriggerAxis(LeftHand));
-	        BackRight.set(-Controller.getTriggerAxis(LeftHand));
-        } else if (Controller.getTriggerAxis(RightHand) > 0.05) {
-            FrontLeft.set(-Controller.getTriggerAxis(RightHand));
-            BackLeft.set(Controller.getTriggerAxis(RightHand));
-            FrontRight.set(-Controller.getTriggerAxis(RightHand));
-            BackRight.set(Controller.getTriggerAxis(RightHand));
-        } else {
-	        return;
+    public void targetAngleCorrection() {
+	    double x = Controller.getX(RightHand);
+	    double y = Controller.getY(RightHand);
+
+	    double angle = Math.atan(y/x) * 180 / Math.PI;
+	    if (x < 0) {
+	        angle += 180;
         }
-	}
+
+
+        double diff = 270 - angle;
+
+	    while (diff > 180) diff -= 360;
+	    while (diff <= -180) diff += 360;
+
+	    double correction = diff / 400; // TODO: magic number
+
+        double newPoint = turnController.getSetpoint() - correction;
+        if (newPoint > 180) newPoint -= 360;
+        if (newPoint <= -180) newPoint += 360;
+
+	    turnController.setSetpoint(newPoint);
+    }
+
+    public void strafe(){
+	    double left = Controller.getTriggerAxis(LeftHand);
+	    double right = Controller.getTriggerAxis(RightHand);
+
+	    double power = right - left;
+        if (Math.abs(power) > 0.05 && isFieldCentric) {
+            myDrive.driveCartesian(power, 0,
+                    rotateToAngleRate, ahrs.getYaw() -  turnController.getSetpoint());
+//            myDrive.driveCartesian(power, 0, rotateToAngleRate, 0);
+        } else if (Math.abs(power) > 0.05) {
+            myDrive.driveCartesian(power, 0, 0);
+        }
+    }
 
 	public void turn() {
 	    if (Controller.getX(RightHand) > 0.2) {
@@ -182,6 +207,31 @@ public class Robot extends TimedRobot implements PIDOutput {
     public void driveStandard() {
 	    myDrive.driveCartesian(Controller.getX(LeftHand), -Controller.getY(LeftHand), Controller.getX(RightHand));
 	}
+
+	public void collisionDetection() {
+        boolean collisionDetected = false;
+
+        double curr_world_linear_accel_x = ahrs.getWorldLinearAccelX();
+        double currentJerkX = curr_world_linear_accel_x - last_world_linear_accel_x;
+        last_world_linear_accel_x = curr_world_linear_accel_x;
+        double curr_world_linear_accel_y = ahrs.getWorldLinearAccelY();
+        double currentJerkY = curr_world_linear_accel_y - last_world_linear_accel_y;
+        last_world_linear_accel_y = curr_world_linear_accel_y;
+
+        if ((Math.abs(currentJerkX) > kCollisionThreshold_DeltaG) ||
+                (Math.abs(currentJerkY) > kCollisionThreshold_DeltaG)) {
+            collisionDetected = true;
+        }
+        SmartDashboard.putBoolean("CollisionDetected", collisionDetected);
+        if (collisionDetected) {
+            Controller.setRumble(GenericHID.RumbleType.kLeftRumble, 1);
+            Controller.setRumble(GenericHID.RumbleType.kRightRumble, 1);
+        } else {
+            Controller.setRumble(GenericHID.RumbleType.kLeftRumble, 0);
+            Controller.setRumble(GenericHID.RumbleType.kRightRumble, 0);
+        }
+
+    }
 
 	private class DrivePID implements PIDOutput {
         @Override
