@@ -1,6 +1,10 @@
 package frc.robot;
 
+import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 import com.kauailabs.navx.frc.AHRS;
+import edu.wpi.cscore.UsbCamera;
+import edu.wpi.cscore.VideoMode;
+import edu.wpi.first.cameraserver.CameraServer;
 import edu.wpi.first.wpilibj.*;
 import edu.wpi.first.wpilibj.GenericHID.Hand;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
@@ -17,16 +21,10 @@ public class Robot extends TimedRobot implements PIDOutput {
 	AHRS ahrs = new AHRS(SPI.Port.kMXP);
 
 	PIDController turnController;
-	final double kPTurn = 0.0145;
+	final double kPTurn = 0.015;
 	final double kITurn = 0.00;
-	final double kDTurn = 0.03;
+	final double kDTurn = 0.02;
 	final double kToleranceDegrees = 2.0f;
-
-    PIDController driveController;
-    final double kPDrive = 0.00;
-    final double kIDrive = 0.00;
-    final double kDDrive = 0.00;
-    final double kToleranceDistance = 5;
 
     private boolean hadDoublePOV = false; // TODO: rename because a bit misleading
     private boolean isFieldCentric = true;
@@ -35,15 +33,13 @@ public class Robot extends TimedRobot implements PIDOutput {
     double last_world_linear_accel_x;
     double last_world_linear_accel_y;
 
-	// Talons:
-	Talon FrontRight = new Talon(3);
-	Talon BackRight = new Talon(2);
-	Talon FrontLeft = new Talon(1);
-	Talon BackLeft = new Talon(0);
+	// Talon SRXs:
+    WPI_TalonSRX FrontRight = new WPI_TalonSRX(2);
+    WPI_TalonSRX BackRight = new WPI_TalonSRX(3);
+    WPI_TalonSRX FrontLeft = new WPI_TalonSRX(1);
+    WPI_TalonSRX BackLeft = new WPI_TalonSRX(4);
 
 	double rotateToAngleRate;
-    double driveToRate;
-    DrivePID drivePID = new DrivePID();
 	// Drive Base
 	MecanumDrive myDrive = new MecanumDrive(BackRight, FrontRight, BackLeft, FrontLeft);
 
@@ -62,11 +58,9 @@ public class Robot extends TimedRobot implements PIDOutput {
         turnController.setOutputRange(-1, 1);
         turnController.setContinuous(true);
         turnController.setAbsoluteTolerance(kToleranceDegrees);
-        driveController = new PIDController(kPDrive, kIDrive, kDDrive, ahrs, drivePID);//TODO:fix the input source;
-        driveController.setOutputRange(-1,1);
-        driveController.setContinuous(false);
-        driveController.setAbsoluteTolerance(kToleranceDistance);
         myDrive.setDeadband(.1);
+        UsbCamera camera = CameraServer.getInstance().startAutomaticCapture();
+        camera.setVideoMode(new VideoMode(VideoMode.PixelFormat.kMJPEG, 500, 500, 10));
     }
 
     public void autonomousInit(){
@@ -131,8 +125,6 @@ public class Robot extends TimedRobot implements PIDOutput {
     public void centricToggle() {
 	    if (Controller.getStartButtonPressed()) {
 	        isFieldCentric = !isFieldCentric;
-        } else {
-	        return;
         }
     }
 
@@ -181,7 +173,7 @@ public class Robot extends TimedRobot implements PIDOutput {
 	    double left = Controller.getTriggerAxis(LeftHand);
 	    double right = Controller.getTriggerAxis(RightHand);
 
-	    double power = right - left;
+	    double power = left - right;
         if (Math.abs(power) > 0.05 && isFieldCentric) {
             myDrive.driveCartesian(power, 0,
                     rotateToAngleRate, ahrs.getYaw() -  turnController.getSetpoint());
@@ -192,12 +184,12 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void driveCentric(){
-        myDrive.driveCartesian(Controller.getX(LeftHand), -Controller.getY(LeftHand),
+        myDrive.driveCartesian(-Controller.getX(LeftHand), Controller.getY(LeftHand),
                 rotateToAngleRate, ahrs.getYaw()- 2 * turnController.getSetpoint());
     }
 
     public void driveStandard() {
-	    myDrive.driveCartesian(Controller.getX(LeftHand), -Controller.getY(LeftHand), Controller.getX(RightHand));
+	    myDrive.driveCartesian(-Controller.getX(LeftHand), Controller.getY(LeftHand), Controller.getX(RightHand));
 	}
 
 	public void collisionDetection() {
@@ -221,14 +213,6 @@ public class Robot extends TimedRobot implements PIDOutput {
         } else {
             Controller.setRumble(GenericHID.RumbleType.kLeftRumble, 0);
             Controller.setRumble(GenericHID.RumbleType.kRightRumble, 0);
-        }
-
-    }
-
-	private class DrivePID implements PIDOutput {
-        @Override
-        public void pidWrite(double output) {
-            driveToRate = output;
         }
     }
 }
