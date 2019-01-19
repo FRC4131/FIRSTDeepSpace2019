@@ -6,6 +6,9 @@ import edu.wpi.first.wpilibj.GenericHID.Hand;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
+import java.util.HashMap;
+import java.util.Map;
+
 
 public class Robot extends TimedRobot implements PIDOutput {
 	Hand LeftHand = GenericHID.Hand.kLeft;
@@ -43,6 +46,15 @@ public class Robot extends TimedRobot implements PIDOutput {
     DrivePID drivePID = new DrivePID();
 	// Drive Base
 	MecanumDrive myDrive = new MecanumDrive(BackRight, FrontRight, BackLeft, FrontLeft);
+
+    private static final Map<Integer, Integer> angleMapping;
+    static {
+        angleMapping = new HashMap<>();
+        angleMapping.put(45, 30);
+        angleMapping.put(135, 150);
+        angleMapping.put(225, 210);
+        angleMapping.put(315, 330);
+    }
 
 	public void robotInit() {
         turnController = new PIDController(kPTurn, kITurn, kDTurn, ahrs, this);
@@ -85,8 +97,6 @@ public class Robot extends TimedRobot implements PIDOutput {
         if (Controller.getTriggerAxis(LeftHand) > 0.05 || Controller.getTriggerAxis(RightHand) > 0.05) {
             strafe();
             SnapToAngle();
-        //} else if (Controller.getX(RightHand) > 0.2 || Controller.getX(RightHand) < -0.2) {
-          //  driveCentric();
         } else if (isFieldCentric) {
             if (Math.sqrt(Math.pow(Controller.getX(RightHand), 2) + Math.pow(Controller.getY(RightHand), 2)) > 0.2) {
                 targetAngleCorrection();
@@ -133,9 +143,8 @@ public class Robot extends TimedRobot implements PIDOutput {
         }
 
         int controllerPOV = Controller.getPOV();
-        if (controllerPOV > 180) {
-            controllerPOV -= 360;
-        }
+	    controllerPOV = angleMapping.getOrDefault(controllerPOV, controllerPOV); // re-map angle to be correct
+	    controllerPOV = (controllerPOV > 180) ? controllerPOV - 360 : controllerPOV; // adjust range to (-180, 180]
 
         if (controllerPOV % 90 != 0) { // Controller POV is at mixed angle
             hadDoublePOV = true;
@@ -153,7 +162,6 @@ public class Robot extends TimedRobot implements PIDOutput {
 	    if (x < 0) {
 	        angle += 180;
         }
-
 
         double diff = 270 - angle;
 
@@ -180,22 +188,6 @@ public class Robot extends TimedRobot implements PIDOutput {
 //            myDrive.driveCartesian(power, 0, rotateToAngleRate, 0);
         } else if (Math.abs(power) > 0.05) {
             myDrive.driveCartesian(power, 0, 0);
-        }
-    }
-
-	public void turn() {
-	    if (Controller.getX(RightHand) > 0.2) {
-	        FrontLeft.set(Controller.getX(RightHand));
-	        BackLeft.set(Controller.getX(RightHand));
-	        FrontRight.set(Controller.getX(RightHand));
-	        BackRight.set(Controller.getX(RightHand));
-        } else if (Controller.getX(RightHand) < -0.2) {
-	        FrontLeft.set(-Controller.getX(RightHand));
-	        BackLeft.set(-Controller.getX(RightHand));
-	        FrontRight.set(-Controller.getX(RightHand));
-	        BackRight.set(-Controller.getX(RightHand));
-        } else {
-	        return;
         }
     }
 
