@@ -1,5 +1,6 @@
 package frc.robot;
 
+import com.ctre.phoenix.motorcontrol.NeutralMode;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 import com.kauailabs.navx.frc.AHRS;
 import edu.wpi.cscore.UsbCamera;
@@ -75,6 +76,10 @@ public class Robot extends TimedRobot implements PIDOutput {
         ahrs.reset();
         turnController.setSetpoint(0);
 	    turnController.enable();
+	    FrontRight.setNeutralMode(NeutralMode.Coast);
+	    FrontLeft.setNeutralMode(NeutralMode.Coast);
+	    BackRight.setNeutralMode(NeutralMode.Coast);
+	    BackLeft.setNeutralMode(NeutralMode.Coast);
 	}
 
 	public void teleopPeriodic() {
@@ -84,16 +89,16 @@ public class Robot extends TimedRobot implements PIDOutput {
 
         collisionDetection();
 
-        //if (!ahrs.isConnected()) {
-          //  isFieldCentric = false;
-        //}
+        if (!ahrs.isConnected()) {
+          isFieldCentric = false;
+        }
 
-        if (Controller.getTriggerAxis(LeftHand) > 0.05 || Controller.getTriggerAxis(RightHand) > 0.05) {
+        if (Controller.getTriggerAxis(LeftHand) > 0.1 || Controller.getTriggerAxis(RightHand) > 0.1) {
             strafe();
             SnapToAngle();
         } else if (isFieldCentric) {
-            if (Math.sqrt(Math.pow(Controller.getX(RightHand), 2) + Math.pow(Controller.getY(RightHand), 2)) > 0.2) {
-                targetAngleCorrection();
+            if (Math.sqrt(Math.pow(Controller.getX(RightHand), 2) + Math.pow(Controller.getY(RightHand), 2)) > 0.8) {
+               targetAngleCorrection();
             }
             driveCentric();
             SnapToAngle();
