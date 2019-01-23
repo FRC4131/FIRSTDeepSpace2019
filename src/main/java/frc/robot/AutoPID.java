@@ -7,7 +7,12 @@ import edu.wpi.first.wpilibj.GenericHID.Hand;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
+import java.awt.*;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
@@ -23,16 +28,16 @@ public class AutoPID extends TimedRobot implements PIDOutput {
 	final double kDTurn = 0.00;
 	final double kToleranceDegrees = 2.0f;
 
-	private LinkedList<double[]> PIDAdjustment = new LinkedList<>();
+	private Set<PIDSet> PIDAdjustment = new HashSet<>();
 
     private boolean hadDoublePOV = false; // TODO: rename because a bit misleading
     private boolean isFieldCentric = true;
 
 	// Talons:
-	WPI_TalonSRX FrontRight = new WPI_TalonSRX(3);
-	WPI_TalonSRX BackRight = new WPI_TalonSRX(2);
+	WPI_TalonSRX FrontRight = new WPI_TalonSRX(2);
+	WPI_TalonSRX BackRight = new WPI_TalonSRX(3);
 	WPI_TalonSRX FrontLeft = new WPI_TalonSRX(1);
-	WPI_TalonSRX BackLeft = new WPI_TalonSRX(0);
+	WPI_TalonSRX BackLeft = new WPI_TalonSRX(4);
 
 	double rotateToAngleRate;
 
@@ -42,7 +47,7 @@ public class AutoPID extends TimedRobot implements PIDOutput {
 	public void robotInit() {
         turnController = new PIDController(kPTurn, kITurn, kDTurn, ahrs, this);
         turnController.setInputRange(-180.0f, 180.0f);
-        turnController.setOutputRange(-1, 1);
+        turnController.setOutputRange(-0.5, 0.5);
         turnController.setContinuous(true);
         turnController.setAbsoluteTolerance(kToleranceDegrees);
         myDrive.setDeadband(.1);
@@ -56,8 +61,82 @@ public class AutoPID extends TimedRobot implements PIDOutput {
 
     }
 
+    private class PIDSet implements Comparable<PIDSet> {
+        private final double p;
+        private final double i;
+        private final double d;
+        LinkedList<Double> errors = new LinkedList<>();
+
+	    public PIDSet(double p, double i, double d) {
+            this.p = p;
+            this.i = i;
+            this.d = d;
+        }
+
+        public double getError() {
+            double mean = errors.stream().mapToDouble(x -> x).average().orElse(0);
+            double stdev = Math.sqrt(errors.stream().mapToDouble(x -> Math.pow(x - mean, 2)).sum() / (errors.size()));
+            return (mean + stdev) * (1 + 0.01 * errors.size());
+        }
+
+        @Override
+        public int compareTo(PIDSet o) {
+            return (int) (10_000 * (this.getError() - o.getError()));
+        }
+
+        public Set<PIDSet> recombine(PIDSet other) {
+            double picker = Math.random();
+            double p = (this.p + other.p) / 2;
+            double i = (this.i + other.i) / 2;
+            double d = (this.d + other.d) / 2;
+
+            HashSet<PIDSet> out = new HashSet<>();
+            out.add(new PIDSet(p, this.i, this.d));
+            out.add(new PIDSet(p, other.i, other.d));
+//            out.add(new PIDSet(this.p, i, this.d));
+//            out.add(new PIDSet(this.p, this.i, d));
+
+            return out;
+        }
+
+        public String toString() {
+	        return String.format("PIDSet {P:%.3f, I:%.3f, D:%.3f, error:%.2f}", p, i, d, getError());
+        }
+
+        @Override
+        public int hashCode() {
+	        return (int) (1000*(p*i*d + p*i + p*d + i*d + p + i + d));
+        }
+
+        @Override
+        public boolean equals(Object other) {
+	        if (other instanceof PIDSet) {
+	            PIDSet o = (PIDSet) other;
+	            return p == o.p && i == o.i && d == o.d;
+            } else {
+	            return false;
+            }
+        }
+    }
+
     public void teleopInit(){
-	    PIDAdjustment.add(new double[] {kPTurn, kITurn, kDTurn, 0});
+	    PIDAdjustment.clear();
+	    PIDSet a = new PIDSet(0.005, 0, 0);
+        for (int i = 0; i < 5; i++) {
+            ahrs.reset();
+            turnController.setSetpoint(0);
+            makeTurn(90, a);
+        }
+
+        PIDSet b = new PIDSet(0.08, 0.0, 0);
+        for (int i = 0; i < 5; i++) {
+            ahrs.reset();
+            turnController.setSetpoint(0);
+            makeTurn(90, b);
+        }
+
+        PIDAdjustment.add(a);
+        PIDAdjustment.add(b);
         ahrs.reset();
         turnController.setSetpoint(0);
 	    turnController.enable();
@@ -68,6 +147,7 @@ public class AutoPID extends TimedRobot implements PIDOutput {
 
         centricToggle();
 
+        myDrive.stopMotor();
 
         if (isFieldCentric) {
 //            driveCentric();
@@ -85,12 +165,32 @@ public class AutoPID extends TimedRobot implements PIDOutput {
         SmartDashboard.putBoolean("hadDoublePOV", hadDoublePOV);
         SmartDashboard.putBoolean("Field Centric Enabled", isFieldCentric);
 
-        SmartDashboard.putNumberArray("best PID", getBestPID());
+        String text = "";
+        for (PIDSet set : PIDAdjustment) {
+            text += set + "\r\n";
+        }
+        SmartDashboard.putString("PIDsets", text);
+        SmartDashboard.putString("bestPID", getBestPID().toString());
 	}
 
-	private void makeTurn(double targetAngle) {
+	private void setupPIDSet() {
+	    Set<PIDSet> sets = getNextPID();
+
+	    for (PIDSet set : sets) {
+            for (int i = 0; i < 5; i++) {
+                ahrs.reset();
+                turnController.setSetpoint(0);
+                makeTurn(90, set);
+            }
+
+            PIDAdjustment.add(set);
+        }
+    }
+
+	private void makeTurn(double targetAngle, PIDSet set) {
 	    double startTime = Timer.getFPGATimestamp();
 
+	    turnController.setPID(set.p, set.i, set.d);
 	    turnController.setSetpoint(targetAngle);
 
 	    while (!isTurnDone(startTime)) {
@@ -105,22 +205,17 @@ public class AutoPID extends TimedRobot implements PIDOutput {
 
         double error = 2 * angleDiff + 5 * timeDiff;
 
-        PIDAdjustment.getLast()[3] = error;
-
-        double[] nextPID;
-        if (PIDAdjustment.size() == 1) {
-            nextPID = new double[] {0.1, 0.1, 0.1, 0};
-        } else {
-            nextPID = getNextPID();
-        }
-        PIDAdjustment.add(nextPID);
-
-        setPID(nextPID);
+        System.out.println(error);
+        set.errors.add(error);
     }
 
     private boolean isTurnDone(double start) {
-	    if (Timer.getFPGATimestamp() > start + 5) {
+	    if (Timer.getFPGATimestamp() > start + 2.5) {
 	        return true;
+        }
+
+	    if (Timer.getFPGATimestamp() < start + 0.2) {
+	        return false;
         }
 
 	    double velocity = Math.sqrt(
@@ -133,33 +228,18 @@ public class AutoPID extends TimedRobot implements PIDOutput {
         return Math.abs(ahrs.getRate()) < rateThreshold && velocity < velocityThreshold;
 	}
 
-    private double[] getNextPID() {
-        Stream<double[]> bestPIDs = PIDAdjustment.stream().sorted((o1, o2) -> (int) ((o1[3] - o2[3]) * 10000));
-
+    private Set<PIDSet> getNextPID() {
+        Stream<PIDSet> bestPIDs = PIDAdjustment.stream().sorted();
+        Iterator<PIDSet> best = bestPIDs.limit(2).iterator();
         // assume at least 2 present
-        double[] a = bestPIDs.findFirst().get();
-        double[] b = bestPIDs.skip(1).findFirst().get();
+        PIDSet a = best.next();
+        PIDSet b = best.next();
 
-        double picker = Math.random();
-        double p = (picker < 0.33) ? (a[0] + b[0]) / 2 : (Math.random() < 0.5) ? a[0] : b[0];
-        double i = (picker < 0.66 && picker > 0.33) ? (a[1] + b[1]) / 2 : (Math.random() < 0.5) ? a[1] : b[1];
-        double d = (picker > 0.66) ? (a[2] + b[2]) / 2 : (Math.random() < 0.5) ? a[2] : b[2];
-
-        p += (Math.random() - 0.5) / 10000;
-        i += (Math.random() - 0.5) / 10000;
-        d += (Math.random() - 0.5) / 10000;
-
-        return new double[] {p, i, d, 0};
+        return a.recombine(b);
     }
 
-    private double[] getBestPID() {
-        Stream<double[]> bestPIDs = PIDAdjustment.stream().sorted((o1, o2) -> (int) ((o1[3] - o2[3]) * 10000));
-        double[] best = bestPIDs.findFirst().get();
-        return new double[] {best[0], best[1], best[2]};
-    }
-
-    private void setPID(double[] pid) {
-	    turnController.setPID(pid[0], pid[1], pid[2]);
+    private PIDSet getBestPID() {
+        return PIDAdjustment.stream().sorted().findFirst().get();
     }
 
 	@Override
@@ -186,6 +266,14 @@ public class AutoPID extends TimedRobot implements PIDOutput {
 	        return;
         }
 
+	    if (Controller.getPOV() == 90) {
+	        setupPIDSet();
+        } else if (Controller.getPOV() == 180) {
+	        PIDAdjustment = PIDAdjustment.stream().sorted().limit(4).collect(Collectors.toSet());
+        } else if (Controller.getPOV() == 270) {
+//	        improveBestPID();
+        }
+
         double before = turnController.getSetpoint();
 
         int controllerPOV = Controller.getPOV();
@@ -199,9 +287,9 @@ public class AutoPID extends TimedRobot implements PIDOutput {
 
         if (controllerPOV % 90 != 0) { // Controller POV is at mixed angle
             hadDoublePOV = true;
-            makeTurn(controllerPOV);
+//            makeTurn(controllerPOV);
         } else if (!hadDoublePOV) { // Controller POV only has one pressed AND no double POV pressed yet
-            makeTurn(controllerPOV);
+//            makeTurn(controllerPOV);
         }
 
     }

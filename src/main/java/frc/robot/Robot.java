@@ -22,11 +22,10 @@ public class Robot extends TimedRobot implements PIDOutput {
 	AHRS ahrs = new AHRS(SPI.Port.kMXP);
 
 	PIDController turnController;
-	final double kPTurn = 0.015;
+	final double kPTurn = 0.01;
 	final double kITurn = 0.00;
-	final double kDTurn = 0.02;
+	final double kDTurn = 0.05;
 	final double kToleranceDegrees = 2.0f;
-
     private boolean hadDoublePOV = false; // TODO: rename because a bit misleading
     private boolean isFieldCentric = true;
 
@@ -59,16 +58,21 @@ public class Robot extends TimedRobot implements PIDOutput {
         turnController.setOutputRange(-1, 1);
         turnController.setContinuous(true);
         turnController.setAbsoluteTolerance(kToleranceDegrees);
+        ahrs.setPIDSourceType(PIDSourceType.kDisplacement);
         myDrive.setDeadband(.1);
         UsbCamera camera = CameraServer.getInstance().startAutomaticCapture();
         camera.setVideoMode(new VideoMode(VideoMode.PixelFormat.kMJPEG, 500, 500, 10));
     }
 
     public void autonomousInit(){
+	    ahrs.reset();
 	    turnController.enable();
     }
 
     public void autonomousPeriodic(){
+        myDrive.driveCartesian(0, 0, rotateToAngleRate);
+        SmartDashboard.putNumber("X Displacement", ahrs.getDisplacementX());
+        SmartDashboard.putNumber("Y Displacement", ahrs.getDisplacementY());
 
     }
 
@@ -106,13 +110,6 @@ public class Robot extends TimedRobot implements PIDOutput {
             driveStandard();
         }
 
-        SmartDashboard.putNumber("X Displacement", ahrs.getDisplacementX());
-        SmartDashboard.putNumber("Y Displacement", ahrs.getDisplacementY());
-        SmartDashboard.putNumber("Target", turnController.getSetpoint());
-        SmartDashboard.putNumber("Yaw", ahrs.getYaw());
-        SmartDashboard.putNumber("POV", Controller.getPOV());
-        SmartDashboard.putBoolean("hadDoublePOV", hadDoublePOV);
-        SmartDashboard.putBoolean("Field Centric Enabled", isFieldCentric);
 	}
 
 	@Override
@@ -182,7 +179,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         if (Math.abs(power) > 0.05 && isFieldCentric) {
             myDrive.driveCartesian(power, 0,
                     rotateToAngleRate, ahrs.getYaw() -  turnController.getSetpoint());
-//            myDrive.driveCartesian(power, 0, rotateToAngleRate, 0);
+            myDrive.driveCartesian(power, 0, rotateToAngleRate, 0);
         } else if (Math.abs(power) > 0.05) {
             myDrive.driveCartesian(power, 0, 0);
         }
@@ -190,7 +187,7 @@ public class Robot extends TimedRobot implements PIDOutput {
 
     public void driveCentric(){
         myDrive.driveCartesian(-Controller.getX(LeftHand), Controller.getY(LeftHand),
-                rotateToAngleRate, ahrs.getYaw()- 2 * turnController.getSetpoint());
+               rotateToAngleRate, ahrs.getYaw()- 2 * turnController.getSetpoint());
     }
 
     public void driveStandard() {
@@ -220,4 +217,5 @@ public class Robot extends TimedRobot implements PIDOutput {
             Controller.setRumble(GenericHID.RumbleType.kRightRumble, 0);
         }
     }
+
 }
