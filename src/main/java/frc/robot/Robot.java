@@ -2,7 +2,7 @@ package frc.robot;
 
 import com.ctre.phoenix.motorcontrol.NeutralMode;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
-import com.kauailabs.navx.frc.AHRS;
+import com.kauailabs.navx.frc.*;
 import edu.wpi.cscore.UsbCamera;
 import edu.wpi.cscore.VideoMode;
 import edu.wpi.first.cameraserver.CameraServer;
@@ -10,6 +10,7 @@ import edu.wpi.first.wpilibj.*;
 import edu.wpi.first.wpilibj.GenericHID.Hand;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import jdk.jfr.Timespan;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -21,6 +22,13 @@ public class Robot extends TimedRobot implements PIDOutput {
 	XboxController Controller = new XboxController(0);
 	AHRS ahrs = new AHRS(SPI.Port.kMXP);
 
+	Integrator Integrator = new Integrator();
+
+	AnalogInput PositiveAccelerationX = new AnalogInput(0);
+	AnalogInput NegativeAccelerationX = new AnalogInput(1);
+    AnalogInput PositiveAccelerationY = new AnalogInput(2);
+    AnalogInput NegativeAccelerationY = new AnalogInput(3);
+
 	PIDController turnController;
 	final double kPTurn = 0.01;
 	final double kITurn = 0.00;
@@ -28,7 +36,10 @@ public class Robot extends TimedRobot implements PIDOutput {
 	final double kToleranceDegrees = 2.0f;
     private boolean hadDoublePOV = false; // TODO: rename because a bit misleading
     private boolean isFieldCentric = true;
-
+    double x_Accel;
+    double y_Accel;
+    double x_Error;
+    double y_Error;
     final static double kCollisionThreshold_DeltaG = 2f;
     double last_world_linear_accel_x;
     double last_world_linear_accel_y;
@@ -60,21 +71,49 @@ public class Robot extends TimedRobot implements PIDOutput {
         turnController.setAbsoluteTolerance(kToleranceDegrees);
         ahrs.setPIDSourceType(PIDSourceType.kDisplacement);
         myDrive.setDeadband(.1);
-        UsbCamera camera = CameraServer.getInstance().startAutomaticCapture();
-        camera.setVideoMode(new VideoMode(VideoMode.PixelFormat.kMJPEG, 500, 500, 10));
+        //UsbCamera camera = CameraServer.getInstance().startAutomaticCapture();
+        //camera.setVideoMode(new VideoMode(VideoMode.PixelFormat.kMJPEG, 500, 500, 10));
+        PositiveAccelerationX.setGlobalSampleRate(200);
+        PositiveAccelerationX.setOversampleBits(12);
+        PositiveAccelerationX.setOversampleBits(12);
+        PositiveAccelerationX.setOversampleBits(12);
+        PositiveAccelerationX.setOversampleBits(12);
+        long count = 0;
+        while(Timer.getFPGATimestamp() < 10){
+            x_Error += (PositiveAccelerationX.getVoltage() - NegativeAccelerationX.getVoltage());
+            y_Error += (PositiveAccelerationY.getVoltage() - NegativeAccelerationY.getVoltage());
+            count++;
+        }
+        x_Error /= count;
+        y_Error /= count;
+
+
     }
 
     public void autonomousInit(){
-	    ahrs.reset();
-	    turnController.enable();
+
     }
 
     public void autonomousPeriodic(){
-        myDrive.driveCartesian(0, 0, rotateToAngleRate);
-        SmartDashboard.putNumber("X Displacement", ahrs.getDisplacementX());
-        SmartDashboard.putNumber("Y Displacement", ahrs.getDisplacementY());
-
+                x_Accel = (PositiveAccelerationX.getVoltage() - NegativeAccelerationX.getVoltage() - x_Error -.0161) / 1.989;
+                y_Accel = (PositiveAccelerationY.getVoltage() - NegativeAccelerationY.getVoltage() - y_Error +.002) / 1.984;
+                myDrive.driveCartesian(0, 0, 0);
+                boolean moving = ahrs.isMoving();
+                Integrator.updateDisplacement( x_Accel, y_Accel, 50, moving);
+                SmartDashboard.putNumber("X Displacement", Integrator.getDisplacementX());
+                SmartDashboard.putNumber("Y Displacement", Integrator.getDisplacementY());
+                SmartDashboard.putNumber("x_Accel", x_Accel);
+                SmartDashboard.putNumber("Y_Accel", y_Accel);
+                SmartDashboard.putNumber("X Error", (x_Error-.0161)/1.989);
+                SmartDashboard.putNumber("Y Error", (y_Error+.002)/1.984);
+                SmartDashboard.putNumber("navX Displacement X", ahrs.getDisplacementX());
+                SmartDashboard.putNumber("navX Displacement Y", ahrs.getDisplacementY());
+//        SmartDashboard.putNumber("Positive Average", PositiveAccelerationX.getAverageValue());
+//        SmartDashboard.putNumber("Negative Average", -NegativeAccelerationX.getAverageValue());
+//        SmartDashboard.putNumber("Acceleration Average", (PositiveAccelerationX.getAverageVoltage()/1.989 - NegativeAccelerationX.getAverageVoltage()/1.989));
+//        SmartDashboard.putNumber("Acceleration", (PositiveAccelerationX.getVoltage()-NegativeAccelerationX.getVoltage())/1.989);
     }
+
 
     public void teleopInit(){
         ahrs.reset();
