@@ -1,183 +1,172 @@
 package frc.robot;
 
-import com.ctre.phoenix.motorcontrol.NeutralMode;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
-import com.kauailabs.navx.frc.*;
-import edu.wpi.cscore.UsbCamera;
-import edu.wpi.cscore.VideoMode;
-import edu.wpi.first.cameraserver.CameraServer;
+import com.kauailabs.navx.frc.AHRS;
 import edu.wpi.first.wpilibj.*;
 import edu.wpi.first.wpilibj.GenericHID.Hand;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import jdk.jfr.Timespan;
-
-import java.util.HashMap;
-import java.util.Map;
 
 
 public class Robot extends TimedRobot implements PIDOutput {
-	Hand LeftHand = GenericHID.Hand.kLeft;
-	Hand RightHand = GenericHID.Hand.kRight;
-	XboxController Controller = new XboxController(0);
-	AHRS ahrs = new AHRS(SPI.Port.kMXP);
-
-	Integrator Integrator = new Integrator();
-
-	AnalogInput PositiveAccelerationX = new AnalogInput(0);
-	AnalogInput NegativeAccelerationX = new AnalogInput(1);
-    AnalogInput PositiveAccelerationY = new AnalogInput(2);
-    AnalogInput NegativeAccelerationY = new AnalogInput(3);
-
-	PIDController turnController;
-	final double kPTurn = 0.01;
-	final double kITurn = 0.00;
-	final double kDTurn = 0.05;
-	final double kToleranceDegrees = 2.0f;
+    Hand LeftHand = GenericHID.Hand.kLeft;
+    Hand RightHand = GenericHID.Hand.kRight;
+    XboxController Controller = new XboxController(0);
+    AHRS ahrs = new AHRS(SPI.Port.kMXP);
+    final double kPTurn = 0.0125;
+    final double kITurn = 0.00;
+    final double kDTurn = 0.005;
+    final double kFTurn = 0.00;
+    final double kToleranceDegrees = 2.0f;
+    static double kP = 0.00;
+    static double kI = 0.00;
+    static double kD = 0.00;
+    static double kF = 0.00;
+    private boolean armsToggle;
     private boolean hadDoublePOV = false; // TODO: rename because a bit misleading
     private boolean isFieldCentric = true;
-    double x_Accel;
-    double y_Accel;
-    double x_Error;
-    double y_Error;
-    final static double kCollisionThreshold_DeltaG = 2f;
-    double last_world_linear_accel_x;
-    double last_world_linear_accel_y;
+    // Talons:
+    WPI_TalonSRX FrontRight = new WPI_TalonSRX(3);
+    WPI_TalonSRX BackRight = new WPI_TalonSRX(1);
+    WPI_TalonSRX FrontLeft = new WPI_TalonSRX(4);
+    WPI_TalonSRX BackLeft = new WPI_TalonSRX(2);
+    WPI_TalonSRX LeftArm = new WPI_TalonSRX(5);
+    WPI_TalonSRX RightArm = new WPI_TalonSRX(6);
+    double rotateToAngleRate;
+    // Drive Base
+    MecanumDrive myDrive = new MecanumDrive(FrontLeft,BackLeft,FrontRight,BackRight);
+    PIDController turnController = new PIDController(kPTurn, kITurn, kDTurn,kFTurn, ahrs, this);
+    public void robotInit() {
 
-	// Talon SRXs:
-    WPI_TalonSRX FrontRight = new WPI_TalonSRX(2);
-    WPI_TalonSRX BackRight = new WPI_TalonSRX(3);
-    WPI_TalonSRX FrontLeft = new WPI_TalonSRX(1);
-    WPI_TalonSRX BackLeft = new WPI_TalonSRX(4);
+        FrontLeft.setInverted(true);
+        BackRight.setInverted(true);
+        FrontRight.setInverted(true);
+        BackLeft.setInverted(true);
 
-	double rotateToAngleRate;
-	// Drive Base
-	MecanumDrive myDrive = new MecanumDrive(BackRight, FrontRight, BackLeft, FrontLeft);
 
-    private static final Map<Integer, Integer> angleMapping;
-    static {
-        angleMapping = new HashMap<>();
-        angleMapping.put(45, 30);
-        angleMapping.put(135, 150);
-        angleMapping.put(225, 210);
-        angleMapping.put(315, 330);
-    }
-
-	public void robotInit() {
-        turnController = new PIDController(kPTurn, kITurn, kDTurn, ahrs, this);
-        turnController.setInputRange(-180.0f, 180.0f);
+        turnController.setInputRange(-180.0, 180.0);
         turnController.setOutputRange(-1, 1);
-        turnController.setContinuous(true);
         turnController.setAbsoluteTolerance(kToleranceDegrees);
-        ahrs.setPIDSourceType(PIDSourceType.kDisplacement);
-        myDrive.setDeadband(.1);
-        //UsbCamera camera = CameraServer.getInstance().startAutomaticCapture();
-        //camera.setVideoMode(new VideoMode(VideoMode.PixelFormat.kMJPEG, 500, 500, 10));
-        PositiveAccelerationX.setGlobalSampleRate(200);
-        PositiveAccelerationX.setOversampleBits(12);
-        PositiveAccelerationX.setOversampleBits(12);
-        PositiveAccelerationX.setOversampleBits(12);
-        PositiveAccelerationX.setOversampleBits(12);
-        long count = 0;
-        while(Timer.getFPGATimestamp() < 10){
-            x_Error += (PositiveAccelerationX.getVoltage() - NegativeAccelerationX.getVoltage());
-            y_Error += (PositiveAccelerationY.getVoltage() - NegativeAccelerationY.getVoltage());
-            count++;
-        }
-        x_Error /= count;
-        y_Error /= count;
-
-
+        turnController.setContinuous(true);
+        turnController.enable();
+        turnController.setSetpoint(0);
     }
 
     public void autonomousInit(){
-
+        turnController.enable();
     }
 
     public void autonomousPeriodic(){
-                x_Accel = (PositiveAccelerationX.getVoltage() - NegativeAccelerationX.getVoltage() - x_Error -.0161) / 1.989;
-                y_Accel = (PositiveAccelerationY.getVoltage() - NegativeAccelerationY.getVoltage() - y_Error +.002) / 1.984;
-                myDrive.driveCartesian(0, 0, 0);
-                boolean moving = ahrs.isMoving();
-                Integrator.updateDisplacement( x_Accel, y_Accel, 50, moving);
-                SmartDashboard.putNumber("X Displacement", Integrator.getDisplacementX());
-                SmartDashboard.putNumber("Y Displacement", Integrator.getDisplacementY());
-                SmartDashboard.putNumber("x_Accel", x_Accel);
-                SmartDashboard.putNumber("Y_Accel", y_Accel);
-                SmartDashboard.putNumber("X Error", (x_Error-.0161)/1.989);
-                SmartDashboard.putNumber("Y Error", (y_Error+.002)/1.984);
-                SmartDashboard.putNumber("navX Displacement X", ahrs.getDisplacementX());
-                SmartDashboard.putNumber("navX Displacement Y", ahrs.getDisplacementY());
-//        SmartDashboard.putNumber("Positive Average", PositiveAccelerationX.getAverageValue());
-//        SmartDashboard.putNumber("Negative Average", -NegativeAccelerationX.getAverageValue());
-//        SmartDashboard.putNumber("Acceleration Average", (PositiveAccelerationX.getAverageVoltage()/1.989 - NegativeAccelerationX.getAverageVoltage()/1.989));
-//        SmartDashboard.putNumber("Acceleration", (PositiveAccelerationX.getVoltage()-NegativeAccelerationX.getVoltage())/1.989);
+
     }
 
-
     public void teleopInit(){
-        ahrs.reset();
-        turnController.setSetpoint(0);
-	    turnController.enable();
-	    FrontRight.setNeutralMode(NeutralMode.Coast);
-	    FrontLeft.setNeutralMode(NeutralMode.Coast);
-	    BackRight.setNeutralMode(NeutralMode.Coast);
-	    BackLeft.setNeutralMode(NeutralMode.Coast);
-	}
+        turnController.enable();
+        myDrive.setSafetyEnabled(true);
+    }
 
-	public void teleopPeriodic() {
-        Reset();//Resets Gyro When you press A
+    public void teleopPeriodic() {
+        while(isOperatorControl()) {
 
-        centricToggle();
-
-        collisionDetection();
-
-        if (!ahrs.isConnected()) {
-          isFieldCentric = false;
-        }
-
-        if (Controller.getTriggerAxis(LeftHand) > 0.1 || Controller.getTriggerAxis(RightHand) > 0.1) {
-            strafe();
-            SnapToAngle();
-        } else if (isFieldCentric) {
-            if (Math.sqrt(Math.pow(Controller.getX(RightHand), 2) + Math.pow(Controller.getY(RightHand), 2)) > 0.8) {
-               targetAngleCorrection();
+            Reset();//Resets Gyro When you press A
+            checkSpinArms();
+            centricToggle();
+            if (!ahrs.isConnected()) {
+                isFieldCentric = false;
             }
-            driveCentric();
-            SnapToAngle();
-        } else {
-            driveStandard();
+
+            if (Controller.getTriggerAxis(LeftHand) > 0.05 || Controller.getTriggerAxis(RightHand) > 0.05) {
+                strafe();
+                SnapToAngle();
+            } else if (isFieldCentric) {
+                driveCentric();
+                SnapToAngle();
+            } else {
+//                driveStandard();
+            }
+            SmartDashboard.putNumber("angle", ahrs.getAngle());
+            /* Code instrumentation */
+//            SmartDashboard.putNumber(   "PDP Chan 0",            pdp.getCurrent(0));
+//            SmartDashboard.putNumber(   "PDP Chan 1",            pdp.getCurrent(1));
+//            SmartDashboard.putNumber(   "PDP Chan 2",            pdp.getCurrent(2));
+//            SmartDashboard.putNumber(   "PDP Chan 3",            pdp.getCurrent(3));
+            SmartDashboard.putNumber(   "IMU_Yaw",               ahrs.getYaw());
+            SmartDashboard.putNumber(   "IMU_FusedHeading",      ahrs.getFusedHeading());
+            SmartDashboard.putNumber(   "IMU_TotalYaw",          ahrs.getAngle());
+            SmartDashboard.putNumber(   "IMU_YawRateDPS",        ahrs.getRate());
+            SmartDashboard.putNumber(   "IMU_Accel_X",           ahrs.getWorldLinearAccelX());
+            SmartDashboard.putNumber(   "IMU_Accel_Y",           ahrs.getWorldLinearAccelY());
+            SmartDashboard.putBoolean(  "IMU_IsMoving",          ahrs.isMoving());
+            SmartDashboard.putBoolean(  "IMU_IsRotating",        ahrs.isRotating());
+            SmartDashboard.putNumber(   "Velocity_X",            ahrs.getVelocityX());
+            SmartDashboard.putNumber(   "Velocity_Y",            ahrs.getVelocityY());
+            SmartDashboard.putNumber(   "Displacement_X",        ahrs.getDisplacementX());
+            SmartDashboard.putNumber(   "Displacement_Y",        ahrs.getDisplacementY());
+
+            kP = SmartDashboard.getNumber("kP", .00);
+            kI = SmartDashboard.getNumber("kI", .00);
+            kD = SmartDashboard.getNumber("kD", .00);
+            kF = SmartDashboard.getNumber("kF", .00);
+
+            turnController.setPID(kP, kI, kD, kF);
+            SmartDashboard.putNumber("kP", turnController.getP());
+            SmartDashboard.putNumber("kI", turnController.getI());
+            SmartDashboard.putNumber("kD", turnController.getD());
+            SmartDashboard.putNumber("kF", turnController.getF());
+
+/*		if ( Controller.getRawButton(1)) {
+            ahrs.reset();
         }
+*/
 
-	}
+            SmartDashboard.putBoolean("isCentric", isFieldCentric);
 
-	@Override
-	public void pidWrite(double output) {
-	    rotateToAngleRate = output;
-	}
+            SmartDashboard.putNumber(   "Target",            turnController.getSetpoint());
+            SmartDashboard.putNumber(   "Set Point",            turnController.getSetpoint());
+            SmartDashboard.putBoolean(   "onTarget",            turnController.onTarget());
 
-	public void Reset() {
+
+            SmartDashboard.putNumber(   "Xbox X",            Controller.getX(LeftHand));
+            SmartDashboard.putNumber(   "Xbox Y",            Controller.getY(LeftHand));
+            SmartDashboard.putNumber(   "Rotate to Angle Rate",        rotateToAngleRate);
+            SmartDashboard.putNumber(   "Get Angle",               ahrs.getAngle());
+            Timer.delay(.005);
+        }
+    }
+
+    @Override
+    public void pidWrite(double output) {
+        if (turnController.onTarget()) { // deadband
+            rotateToAngleRate = 0;
+        } else {
+            rotateToAngleRate = output;
+        }
+    }
+
+    public void Reset(){
         if (Controller.getRawButton(1)) {
             ahrs.reset();
-            turnController.setSetpoint(0);
         }
     }
 
     public void centricToggle() {
-	    if (Controller.getStartButtonPressed()) {
-	        isFieldCentric = !isFieldCentric;
+        if (Controller.getStartButton()) {
+            isFieldCentric = !isFieldCentric;
+        } else {
+            return;
         }
     }
 
     public void SnapToAngle(){
-	    if (Controller.getPOV() == -1) { // no Controller POV pressed
-	        hadDoublePOV = false;
-	        return;
+        if (Controller.getPOV() == -1) { // no Controller POV pressed
+            hadDoublePOV = false;
+            return;
         }
 
         int controllerPOV = Controller.getPOV();
-	    controllerPOV = angleMapping.getOrDefault(controllerPOV, controllerPOV); // re-map angle to be correct
-	    controllerPOV = (controllerPOV > 180) ? controllerPOV - 360 : controllerPOV; // adjust range to (-180, 180]
+        if (controllerPOV > 180) {
+            controllerPOV -= 360;
+        }
 
         if (controllerPOV % 90 != 0) { // Controller POV is at mixed angle
             hadDoublePOV = true;
@@ -187,74 +176,46 @@ public class Robot extends TimedRobot implements PIDOutput {
         }
     }
 
-    public void targetAngleCorrection() {
-	    double x = Controller.getX(RightHand);
-	    double y = Controller.getY(RightHand);
-
-	    double angle = Math.atan(y/x) * 180 / Math.PI;
-	    if (x < 0) {
-	        angle += 180;
+    public void strafe(){
+        if(Controller.getTriggerAxis(LeftHand) > 0.05 && Controller.getTriggerAxis(RightHand) > 0.05) {
+            return;
+        } else if (Controller.getTriggerAxis(LeftHand) > 0.05) {
+            FrontLeft.set(Controller.getTriggerAxis(LeftHand));
+            BackLeft.set(-Controller.getTriggerAxis(LeftHand));
+            FrontRight.set(Controller.getTriggerAxis(LeftHand));
+            BackRight.set(-Controller.getTriggerAxis(LeftHand));
+        } else if (Controller.getTriggerAxis(RightHand) > 0.05) {
+            FrontLeft.set(-Controller.getTriggerAxis(RightHand));
+            BackLeft.set(Controller.getTriggerAxis(RightHand));
+            FrontRight.set(-Controller.getTriggerAxis(RightHand));
+            BackRight.set(Controller.getTriggerAxis(RightHand));
+        } else {
+            return;
         }
-
-        double diff = 270 - angle;
-
-	    while (diff > 180) diff -= 360;
-	    while (diff <= -180) diff += 360;
-
-	    double correction = diff / 400; // TODO: magic number
-
-        double newPoint = turnController.getSetpoint() - correction;
-        if (newPoint > 180) newPoint -= 360;
-        if (newPoint <= -180) newPoint += 360;
-
-	    turnController.setSetpoint(newPoint);
     }
 
-    public void strafe(){
-	    double left = Controller.getTriggerAxis(LeftHand);
-	    double right = Controller.getTriggerAxis(RightHand);
+    public void checkSpinArms(){
 
-	    double power = left - right;
-        if (Math.abs(power) > 0.05 && isFieldCentric) {
-            myDrive.driveCartesian(power, 0,
-                    rotateToAngleRate, ahrs.getYaw() -  turnController.getSetpoint());
-            myDrive.driveCartesian(power, 0, rotateToAngleRate, 0);
-        } else if (Math.abs(power) > 0.05) {
-            myDrive.driveCartesian(power, 0, 0);
+        if(Controller.getRawButton(2)){
+            armsToggle = true;
+        } else {
+            armsToggle = false;
+        }
+        if(armsToggle){
+            LeftArm.set(-.75);
+            RightArm.set(.75);
+        } else {
+            LeftArm.set(0);
+            RightArm.set(0);
         }
     }
 
     public void driveCentric(){
-        myDrive.driveCartesian(-Controller.getX(LeftHand), Controller.getY(LeftHand),
-               rotateToAngleRate, ahrs.getYaw()- 2 * turnController.getSetpoint());
+        myDrive.driveCartesian(-Controller.getX(LeftHand), Controller.getY(LeftHand), rotateToAngleRate, ahrs.getAngle() - 2*turnController.getSetpoint());
     }
 
-    public void driveStandard() {
-	    myDrive.driveCartesian(-Controller.getX(LeftHand), Controller.getY(LeftHand), Controller.getX(RightHand));
-	}
-
-	public void collisionDetection() {
-        boolean collisionDetected = false;
-
-        double curr_world_linear_accel_x = ahrs.getWorldLinearAccelX();
-        double currentJerkX = curr_world_linear_accel_x - last_world_linear_accel_x;
-        last_world_linear_accel_x = curr_world_linear_accel_x;
-        double curr_world_linear_accel_y = ahrs.getWorldLinearAccelY();
-        double currentJerkY = curr_world_linear_accel_y - last_world_linear_accel_y;
-        last_world_linear_accel_y = curr_world_linear_accel_y;
-
-        if ((Math.abs(currentJerkX) > kCollisionThreshold_DeltaG) ||
-                (Math.abs(currentJerkY) > kCollisionThreshold_DeltaG)) {
-            collisionDetected = true;
-        }
-        SmartDashboard.putBoolean("CollisionDetected", collisionDetected);
-        if (collisionDetected) {
-            Controller.setRumble(GenericHID.RumbleType.kLeftRumble, 1);
-            Controller.setRumble(GenericHID.RumbleType.kRightRumble, 1);
-        } else {
-            Controller.setRumble(GenericHID.RumbleType.kLeftRumble, 0);
-            Controller.setRumble(GenericHID.RumbleType.kRightRumble, 0);
-        }
-    }
+//    public void driveStandard() {
+//        myDrive.driveCartesian(Controller.getX(LeftHand), Controller.getY(LeftHand), Controller.getX(RightHand));
+//    }
 
 }
