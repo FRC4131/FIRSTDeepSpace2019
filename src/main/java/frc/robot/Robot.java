@@ -144,6 +144,8 @@ public class Robot extends TimedRobot implements PIDOutput {
             SmartDashboard.putNumber(   "Xbox Y",            Controller.getY(LeftHand));
             SmartDashboard.putNumber(   "Rotate to Angle Rate",        rotateToAngleRate);
             SmartDashboard.putNumber(   "Get Angle",               ahrs.getAngle());
+
+            SmartDashboard.putBoolean("Arms Down", armsDown);
             Timer.delay(.005);
         }
     }
@@ -212,8 +214,8 @@ public class Robot extends TimedRobot implements PIDOutput {
 
 
         if(Controller.getRawButton(2)){
-            LeftArm.set(-.35);
-            RightArm.set(.35);
+            LeftArm.set(-.4);
+            RightArm.set(.4);
         } else {
             LeftArm.set(0);
             RightArm.set(0);
@@ -238,13 +240,18 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
     private void checkIntake() {
         if (Controller.getRawButton(5)) {
-            Intake.set(.5);
+            Intake.set(.25);
         } else if (Controller.getRawButton(6)) {
-            Intake.set(-1);
+            Intake.set(-0.5);
         } else {
             Intake.set(0);
         }
-         if (Controller.getRawButton(7)) {
+
+        if (Controller.getBackButtonPressed()) {
+            armsDown = !armsDown;
+        }
+
+        if (!armsDown) {
 
              ArmsDeploy.set(DoubleSolenoid.Value.kForward);
 
