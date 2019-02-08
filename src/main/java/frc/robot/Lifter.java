@@ -4,6 +4,7 @@ import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.FeedbackDevice;
 import com.ctre.phoenix.motorcontrol.StatusFrameEnhanced;
 import com.ctre.phoenix.motorcontrol.can.TalonSRX;
+import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 import edu.wpi.first.wpilibj.*;
 
 /**
@@ -15,26 +16,11 @@ import edu.wpi.first.wpilibj.*;
  *
  *
  */
-public class Lifter implements PIDSource, PIDOutput {
+public class Lifter {
 
-    private TalonSRX motor;
+    private WPI_TalonSRX talon;
 
-    private PIDController liftController;
-
-    private double liftRate;
-
-    private PIDSourceType pidSourceType = PIDSourceType.kDisplacement;
-
-    public Lifter(TalonSRX motor) {
-        this.motor = motor;
-
-        motor.setStatusFramePeriod(StatusFrameEnhanced.Status_2_Feedback0, 30);
-        motor.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative);
-
-        liftController = new PIDController(0.01, 0, 0, this, this);
-        liftController.enable();
-    }
-
+    private double target = 0;
 
     /**
      * The elevation (inches) of the center of the lowest rocket cargo port
@@ -62,48 +48,47 @@ public class Lifter implements PIDSource, PIDOutput {
      */
     public static final double CARGO_DEPOSIT_HEIGHT = 40 * TICKS_PER_VERTICAL_INCH; //TODO: evaluate
 
-    public void moveToLevel(int level) {
-        // TODO: redo, remap levels
-        if (level == 0) {
-            this.moveToEncoder(0);
-        } else {
-            double target = ((level-1) * PORT_INTERVAL + PORT_LOW - LOWEST_CARGO_CENTER) * TICKS_PER_VERTICAL_INCH;
-            this.moveToEncoder((int) target);
-        }
+    public Lifter(WPI_TalonSRX talon) {
+        this.talon = talon;
+
+        talon.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative);
+        talon.setSensorPhase(true);
+
+        talon.setInverted(false);
+
+        talon.configNominalOutputForward(0);
+        talon.configNominalOutputReverse(0);
+        talon.configPeakOutputForward(1);
+        talon.configPeakOutputReverse(-1);
+
+        talon.configAllowableClosedloopError(0, 16);
+
+        talon.enableCurrentLimit(true);
+        talon.configContinuousCurrentLimit(20);
+        talon.configPeakCurrentLimit(0);
+
+        talon.config_kP(0, 0.5);
+        talon.config_kI(0, 0);
+        talon.config_kD(0, 0);
+//        talon.setStatusFramePeriod(StatusFrameEnhanced.Status_2_Feedback0, 30);
+        talon.setSelectedSensorPosition(0);
     }
 
-    public void moveToEncoder(double target) {
-        liftController.setSetpoint(target);
-    }
+//    public void moveToLevel(int level) {
+//        // TODO: redo, remap levels
+//        if (level == 0) {
+//            this.moveToEncoder(0);
+//        } else {
+//            double target = ((level-1) * PORT_INTERVAL + PORT_LOW - LOWEST_CARGO_CENTER) * TICKS_PER_VERTICAL_INCH;
+//            this.moveToEncoder((int) target);
+//        }
+//    }
 
-    /**
-     * Should be called every loop iteration.
-     */
     public void run() {
-        motor.set(ControlMode.PercentOutput, liftRate);
+        talon.set(ControlMode.Position, target);
     }
 
-    @Override
-    public void pidWrite(double output) {
-        liftRate = output;
-    }
-
-    @Override
-    public void setPIDSourceType(PIDSourceType pidSource) {
-        pidSourceType = pidSource;
-    }
-
-    @Override
-    public PIDSourceType getPIDSourceType() {
-        return pidSourceType;
-    }
-
-    @Override
-    public double pidGet() {
-        if (pidSourceType == PIDSourceType.kDisplacement) { // displacement
-            return motor.getSelectedSensorPosition();
-        } else { // rate
-            return motor.getSelectedSensorVelocity();
-        }
+    public void setTarget(double target) {
+        this.target = target;
     }
 }

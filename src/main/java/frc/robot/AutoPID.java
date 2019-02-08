@@ -261,7 +261,7 @@ public class AutoPID extends TimedRobot implements PIDOutput {
     }
 
     public void SnapToAngle(){
-	    if (Controller.getPOV() == -1) { // no Controller POV pressed
+	    if (Controller.getPOV() == -1) { // no controller POV pressed
 	        hadDoublePOV = false;
 	        return;
         }
@@ -285,10 +285,10 @@ public class AutoPID extends TimedRobot implements PIDOutput {
             return; // do nothing if setpoint does not change
         }
 
-        if (controllerPOV % 90 != 0) { // Controller POV is at mixed angle
+        if (controllerPOV % 90 != 0) { // controller POV is at mixed angle
             hadDoublePOV = true;
 //            makeTurn(controllerPOV);
-        } else if (!hadDoublePOV) { // Controller POV only has one pressed AND no double POV pressed yet
+        } else if (!hadDoublePOV) { // controller POV only has one pressed AND no double POV pressed yet
 //            makeTurn(controllerPOV);
         }
 
