@@ -1,5 +1,6 @@
 package frc.robot;
 
+import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 import com.kauailabs.navx.frc.AHRS;
 import edu.wpi.first.wpilibj.*;
@@ -7,11 +8,15 @@ import edu.wpi.first.wpilibj.GenericHID.Hand;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
+import javax.xml.crypto.dsig.keyinfo.KeyValue;
+import java.text.BreakIterator;
+
 
 public class Robot extends TimedRobot implements PIDOutput {
     Hand LeftHand = GenericHID.Hand.kLeft;
     Hand RightHand = GenericHID.Hand.kRight;
     XboxController Controller = new XboxController(0);
+    Compressor compressor = new Compressor(61);
     AHRS ahrs = new AHRS(SPI.Port.kMXP);
     final double kPTurn = 0.0125;
     final double kITurn = 0.00;
@@ -22,9 +27,10 @@ public class Robot extends TimedRobot implements PIDOutput {
     static double kI = 0.00;
     static double kD = 0.00;
     static double kF = 0.00;
-    private boolean armsToggle;
     private boolean hadDoublePOV = false; // TODO: rename because a bit misleading
     private boolean isFieldCentric = true;
+    private double elevatorEncoderstop;
+    private boolean armsDown = false; //inital condition of the robot;
     // Talons:
     WPI_TalonSRX FrontRight = new WPI_TalonSRX(3);
     WPI_TalonSRX BackRight = new WPI_TalonSRX(1);
@@ -32,17 +38,31 @@ public class Robot extends TimedRobot implements PIDOutput {
     WPI_TalonSRX BackLeft = new WPI_TalonSRX(2);
     WPI_TalonSRX LeftArm = new WPI_TalonSRX(5);
     WPI_TalonSRX RightArm = new WPI_TalonSRX(6);
+    WPI_TalonSRX Elevator = new WPI_TalonSRX(7);
+    WPI_TalonSRX Intake = new WPI_TalonSRX(8);
+
+
+    private boolean HatchToggle = false;
+
+    DoubleSolenoid HatchDeploy = new DoubleSolenoid(61, 2,3);
+    DoubleSolenoid ArmsDeploy = new DoubleSolenoid(61, 4,5);
+    DoubleSolenoid HatchMechanism = new DoubleSolenoid(61,0,1);
     double rotateToAngleRate;
     // Drive Base
     MecanumDrive myDrive = new MecanumDrive(FrontLeft,BackLeft,FrontRight,BackRight);
     PIDController turnController = new PIDController(kPTurn, kITurn, kDTurn,kFTurn, ahrs, this);
     public void robotInit() {
+        Elevator.setSelectedSensorPosition(0);
+
+
 
         FrontLeft.setInverted(true);
         BackRight.setInverted(true);
         FrontRight.setInverted(true);
         BackLeft.setInverted(true);
 
+        compressor.clearAllPCMStickyFaults();
+        compressor.setClosedLoopControl(true);
 
         turnController.setInputRange(-180.0, 180.0);
         turnController.setOutputRange(-1, 1);
@@ -67,9 +87,11 @@ public class Robot extends TimedRobot implements PIDOutput {
 
     public void teleopPeriodic() {
         while(isOperatorControl()) {
-
-            Reset();//Resets Gyro When you press A
+            checkHatchMech();
+            //Reset();//Resets Gyro When you press A
             checkSpinArms();
+            adjustElevator();
+            checkIntake();
             centricToggle();
             if (!ahrs.isConnected()) {
                 isFieldCentric = false;
@@ -84,12 +106,9 @@ public class Robot extends TimedRobot implements PIDOutput {
             } else {
 //                driveStandard();
             }
+
+
             SmartDashboard.putNumber("angle", ahrs.getAngle());
-            /* Code instrumentation */
-//            SmartDashboard.putNumber(   "PDP Chan 0",            pdp.getCurrent(0));
-//            SmartDashboard.putNumber(   "PDP Chan 1",            pdp.getCurrent(1));
-//            SmartDashboard.putNumber(   "PDP Chan 2",            pdp.getCurrent(2));
-//            SmartDashboard.putNumber(   "PDP Chan 3",            pdp.getCurrent(3));
             SmartDashboard.putNumber(   "IMU_Yaw",               ahrs.getYaw());
             SmartDashboard.putNumber(   "IMU_FusedHeading",      ahrs.getFusedHeading());
             SmartDashboard.putNumber(   "IMU_TotalYaw",          ahrs.getAngle());
@@ -113,11 +132,6 @@ public class Robot extends TimedRobot implements PIDOutput {
             SmartDashboard.putNumber("kI", turnController.getI());
             SmartDashboard.putNumber("kD", turnController.getD());
             SmartDashboard.putNumber("kF", turnController.getF());
-
-/*		if ( Controller.getRawButton(1)) {
-            ahrs.reset();
-        }
-*/
 
             SmartDashboard.putBoolean("isCentric", isFieldCentric);
 
@@ -144,7 +158,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void Reset(){
-        if (Controller.getRawButton(1)) {
+        if (Controller.getRawButton(9)) {
             ahrs.reset();
         }
     }
@@ -196,14 +210,10 @@ public class Robot extends TimedRobot implements PIDOutput {
 
     public void checkSpinArms(){
 
+
         if(Controller.getRawButton(2)){
-            armsToggle = true;
-        } else {
-            armsToggle = false;
-        }
-        if(armsToggle){
-            LeftArm.set(-.75);
-            RightArm.set(.75);
+            LeftArm.set(-.35);
+            RightArm.set(.35);
         } else {
             LeftArm.set(0);
             RightArm.set(0);
@@ -213,6 +223,48 @@ public class Robot extends TimedRobot implements PIDOutput {
     public void driveCentric(){
         myDrive.driveCartesian(-Controller.getX(LeftHand), Controller.getY(LeftHand), rotateToAngleRate, ahrs.getAngle() - 2*turnController.getSetpoint());
     }
+
+    private void adjustElevator(){
+        SmartDashboard.putNumber("ligma",Elevator.getSelectedSensorPosition());
+
+        if(Controller.getRawButton(3)) {
+            Elevator.set(.5);
+        } else if(Controller.getRawButton(4)) {
+            Elevator.set(-.5);
+        } else {
+            Elevator.set(0);
+        }
+
+    }
+    private void checkIntake() {
+        if (Controller.getRawButton(5)) {
+            Intake.set(.5);
+        } else if (Controller.getRawButton(6)) {
+            Intake.set(-1);
+        } else {
+            Intake.set(0);
+        }
+         if (Controller.getRawButton(7)) {
+
+             ArmsDeploy.set(DoubleSolenoid.Value.kForward);
+
+             //actuate solenoids to bring arms up
+         } else {
+             ArmsDeploy.set(DoubleSolenoid.Value.kReverse);
+
+         }
+    }
+
+    private void checkHatchMech(){
+        if(Controller.getRawButton(1)){
+            HatchMechanism.set(DoubleSolenoid.Value.kReverse);
+        } else {
+
+            HatchMechanism.set(DoubleSolenoid.Value.kForward);
+        }
+    }
+
+
 
 //    public void driveStandard() {
 //        myDrive.driveCartesian(Controller.getX(LeftHand), Controller.getY(LeftHand), Controller.getX(RightHand));
