@@ -1,7 +1,9 @@
 package frc.robot;
 
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
+
 import com.kauailabs.navx.frc.AHRS;
+
 import edu.wpi.first.wpilibj.*;
 import edu.wpi.first.wpilibj.GenericHID.Hand;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
@@ -44,9 +46,9 @@ public class Robot extends TimedRobot implements PIDOutput {
 
     Lifter lifter = new Lifter(elevator);
 
-    DoubleSolenoid HatchDeploy = new DoubleSolenoid(61, 2,3);
-    DoubleSolenoid ArmsDeploy = new DoubleSolenoid(61, 4,5);
-    DoubleSolenoid HatchMechanism = new DoubleSolenoid(61,0,1);
+    DoubleSolenoid hatchDeploy = new DoubleSolenoid(61, 2,3);
+    DoubleSolenoid armsDeploy = new DoubleSolenoid(61, 4,5);
+    DoubleSolenoid hatchMechanism = new DoubleSolenoid(61,0,1);
 
     private static double rotateToAngleRate;
 
@@ -145,6 +147,8 @@ public class Robot extends TimedRobot implements PIDOutput {
             SmartDashboard.putNumber(   "Xbox Y",            controller.getY(leftHand));
             SmartDashboard.putNumber(   "Rotate to Angle Rate",        rotateToAngleRate);
             SmartDashboard.putNumber(   "Get Angle",               ahrs.getAngle());
+
+            SmartDashboard.putBoolean("NavX Connected", ahrs.isConnected());
 
             SmartDashboard.putBoolean("Arms Down", armsUp);
             Timer.delay(.005);
@@ -254,18 +258,18 @@ public class Robot extends TimedRobot implements PIDOutput {
         }
 
         if (!armsUp) {
-             ArmsDeploy.set(DoubleSolenoid.Value.kForward);
+             armsDeploy.set(DoubleSolenoid.Value.kForward);
          } else {
-             ArmsDeploy.set(DoubleSolenoid.Value.kReverse);
+             armsDeploy.set(DoubleSolenoid.Value.kReverse);
 
          }
     }
 
     private void hatchMech(){
         if(secondary.getRawButton(1)){
-            HatchMechanism.set(DoubleSolenoid.Value.kReverse);
+            hatchMechanism.set(DoubleSolenoid.Value.kReverse);
         } else {
-            HatchMechanism.set(DoubleSolenoid.Value.kForward);
+            hatchMechanism.set(DoubleSolenoid.Value.kForward);
         }
     }
 
