@@ -34,6 +34,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     private static boolean hadDoublePOV = false; // TODO: rename because a bit misleading
     private static boolean isFieldCentric = true;
     private static boolean armsUp = true;
+    private static boolean intakeActive = false;
 
     WPI_TalonSRX frontRight = new WPI_TalonSRX(3);
     WPI_TalonSRX backRight = new WPI_TalonSRX(1);
@@ -171,7 +172,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void centricToggle() {
-        if (controller.getStartButton()) {
+        if (controller.getStartButtonReleased()) {
             isFieldCentric = !isFieldCentric;
         } else {
             return;
@@ -217,7 +218,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void spinArms(){
-        if(secondary.getRawButton(2)){
+        if(intakeActive){
             leftArm.set(-.35);
             rightArm.set(.35);
         } else {
@@ -233,10 +234,12 @@ public class Robot extends TimedRobot implements PIDOutput {
     private void adjustElevator(){
         SmartDashboard.putNumber("elevator Encoder", elevator.getSelectedSensorPosition());
 
-        if(secondary.getRawButton(3)) {
-            lifter.setTarget(11200);
-        } else if(secondary.getRawButton(4)) {
+        if(secondary.getRawButton(4)) {
+            lifter.setTarget(11300);
+        } else if(secondary.getRawButton(3)) {
             lifter.setTarget(0);
+        } else if (secondary.getRawButton(3) && secondary.getRawButton(4)) {
+            lifter.setTarget(5500);
         }  else {
             return;
         }
@@ -245,10 +248,14 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     private void runIntake() {
-        if (secondary.getRawButton(2)) {
+        if (secondary.getBButtonReleased()) {
+            intakeActive = !intakeActive;
+        }
+
+        if (intakeActive) {
             intake.set(.25);
         } else if (secondary.getRawButton(6)) {
-            intake.set(-0.5);
+            intake.set(-1);
         } else {
             intake.set(0);
         }
@@ -274,6 +281,6 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void driveStandard() {
-        myDrive.driveCartesian(controller.getX(leftHand), controller.getY(leftHand), controller.getX(rightHand));
+        myDrive.driveCartesian(-controller.getX(leftHand), controller.getY(leftHand), controller.getX(rightHand));
     }
 }

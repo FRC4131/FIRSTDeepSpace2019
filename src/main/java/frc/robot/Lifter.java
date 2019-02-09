@@ -58,8 +58,8 @@ public class Lifter {
 
         talon.configNominalOutputForward(0);
         talon.configNominalOutputReverse(0);
-        talon.configPeakOutputForward(1);
-        talon.configPeakOutputReverse(-1);
+        talon.configPeakOutputForward(0.5);
+        talon.configPeakOutputReverse(-0.5);
 
         talon.configAllowableClosedloopError(0, 16);
 
