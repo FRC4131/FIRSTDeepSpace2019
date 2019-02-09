@@ -126,12 +126,12 @@ public class Robot extends TimedRobot implements PIDOutput {
             SmartDashboard.putNumber(   "Displacement_X",        ahrs.getDisplacementX());
             SmartDashboard.putNumber(   "Displacement_Y",        ahrs.getDisplacementY());
 
-            kP = SmartDashboard.getNumber("kP", .00);
+            /*kP = SmartDashboard.getNumber("kP", .00);
             kI = SmartDashboard.getNumber("kI", .00);
             kD = SmartDashboard.getNumber("kD", .00);
-            kF = SmartDashboard.getNumber("kF", .00);
+            kF = SmartDashboard.getNumber("kF", .00);*/
 
-            turnController.setPID(kP, kI, kD, kF);
+            //turnController.setPID(kP, kI, kD, kF);
             SmartDashboard.putNumber("kP", turnController.getP());
             SmartDashboard.putNumber("kI", turnController.getI());
             SmartDashboard.putNumber("kD", turnController.getD());
@@ -172,7 +172,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void centricToggle() {
-        if (controller.getStartButtonReleased()) {
+        if (controller.getRawButtonReleased(5)) {
             isFieldCentric = !isFieldCentric;
         } else {
             return;
@@ -260,7 +260,7 @@ public class Robot extends TimedRobot implements PIDOutput {
             intake.set(0);
         }
 
-        if (secondary.getBackButtonPressed()) {
+        if (secondary.getStartButtonReleased()) {
             armsUp = !armsUp;
         }
 
