@@ -14,13 +14,13 @@ public class Robot extends TimedRobot implements PIDOutput {
     Hand leftHand = GenericHID.Hand.kLeft;
     Hand rightHand = GenericHID.Hand.kRight;
     XboxController controller = new XboxController(0);
-    XboxController secondary = controller;
-    //XboxController secondary = new XboxController(1);
+    //XboxController secondary = controller;
+    XboxController secondary = new XboxController(1);
 
     Compressor compressor = new Compressor(61);
 
     AHRS ahrs = new AHRS(SPI.Port.kMXP);
-    private static double kPTurn = 0.0125;
+    private static double kPTurn = 0.0105;
     private static double kITurn = 0.00;
     private static double kDTurn = 0.005;
     private static double kFTurn = 0.00;
@@ -67,7 +67,7 @@ public class Robot extends TimedRobot implements PIDOutput {
 
         compressor.clearAllPCMStickyFaults();
         compressor.setClosedLoopControl(true);
-
+        myDrive.setDeadband(.1);
         turnController.setInputRange(-180.0, 180.0);
         turnController.setOutputRange(-1, 1);
         turnController.setAbsoluteTolerance(kToleranceDegrees);
@@ -92,7 +92,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     public void teleopPeriodic() {
         while(isOperatorControl()) {
             hatchMech();
-            //reset(); Resets Gyro When you press A
+            reset();
             spinArms();
             adjustElevator();
             runIntake();
@@ -151,7 +151,7 @@ public class Robot extends TimedRobot implements PIDOutput {
 
             SmartDashboard.putBoolean("NavX Connected", ahrs.isConnected());
 
-            SmartDashboard.putBoolean("Arms Down", armsUp);
+            SmartDashboard.putBoolean("Arms Up", armsUp);
             Timer.delay(.005);
         }
     }
@@ -166,13 +166,13 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void reset(){
-        if (controller.getRawButton(9)) {
+        if (controller.getStartButton()) {
             ahrs.reset();
         }
     }
 
     public void centricToggle() {
-        if (controller.getRawButtonReleased(5)) {
+        if (controller.getBackButtonReleased()) {
             isFieldCentric = !isFieldCentric;
         } else {
             return;
@@ -203,15 +203,9 @@ public class Robot extends TimedRobot implements PIDOutput {
         if(controller.getTriggerAxis(leftHand) > 0.05 && controller.getTriggerAxis(rightHand) > 0.05) {
             return;
         } else if (controller.getTriggerAxis(leftHand) > 0.05) {
-            frontLeft.set(controller.getTriggerAxis(leftHand));
-            backLeft.set(-controller.getTriggerAxis(leftHand));
-            frontRight.set(controller.getTriggerAxis(leftHand));
-            backRight.set(-controller.getTriggerAxis(leftHand));
+            myDrive.driveCartesian(controller.getTriggerAxis(leftHand), 0, 0);
         } else if (controller.getTriggerAxis(rightHand) > 0.05) {
-            frontLeft.set(-controller.getTriggerAxis(rightHand));
-            backLeft.set(controller.getTriggerAxis(rightHand));
-            frontRight.set(-controller.getTriggerAxis(rightHand));
-            backRight.set(controller.getTriggerAxis(rightHand));
+            myDrive.driveCartesian(-controller.getTriggerAxis(rightHand), 0, 0);
         } else {
             return;
         }
@@ -238,8 +232,6 @@ public class Robot extends TimedRobot implements PIDOutput {
             lifter.setTarget(11300);
         } else if(secondary.getRawButton(3)) {
             lifter.setTarget(0);
-        } else if (secondary.getRawButton(3) && secondary.getRawButton(4)) {
-            lifter.setTarget(5500);
         }  else {
             return;
         }
@@ -254,7 +246,7 @@ public class Robot extends TimedRobot implements PIDOutput {
 
         if (intakeActive) {
             intake.set(.25);
-        } else if (secondary.getRawButton(6)) {
+        } else if (secondary.getTriggerAxis(leftHand) > 0.05 || secondary.getTriggerAxis(rightHand) > 0.05) {
             intake.set(-1);
         } else {
             intake.set(0);
