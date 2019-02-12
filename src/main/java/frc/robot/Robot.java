@@ -78,10 +78,71 @@ public class Robot extends TimedRobot implements PIDOutput {
 
     public void autonomousInit(){
         turnController.enable();
+        myDrive.setSafetyEnabled(true);
     }
 
     public void autonomousPeriodic(){
+        hatchMech();
+        reset();
+        spinArms();
+        adjustElevator();
+        runIntake();
+        centricToggle();
 
+        if (!ahrs.isConnected()) {
+            isFieldCentric = false;
+        }
+
+        if (controller.getTriggerAxis(leftHand) > 0.05 || controller.getTriggerAxis(rightHand) > 0.05) {
+            strafe();
+            snapToAngle();
+        } else if (isFieldCentric) {
+            driveCentric();
+            snapToAngle();
+        } else {
+            driveStandard();
+        }
+
+        SmartDashboard.putNumber("angle", ahrs.getAngle());
+        SmartDashboard.putNumber(   "IMU_Yaw",               ahrs.getYaw());
+        SmartDashboard.putNumber(   "IMU_FusedHeading",      ahrs.getFusedHeading());
+        SmartDashboard.putNumber(   "IMU_TotalYaw",          ahrs.getAngle());
+        SmartDashboard.putNumber(   "IMU_YawRateDPS",        ahrs.getRate());
+        SmartDashboard.putNumber(   "IMU_Accel_X",           ahrs.getWorldLinearAccelX());
+        SmartDashboard.putNumber(   "IMU_Accel_Y",           ahrs.getWorldLinearAccelY());
+        SmartDashboard.putBoolean(  "IMU_IsMoving",          ahrs.isMoving());
+        SmartDashboard.putBoolean(  "IMU_IsRotating",        ahrs.isRotating());
+        SmartDashboard.putNumber(   "Velocity_X",            ahrs.getVelocityX());
+        SmartDashboard.putNumber(   "Velocity_Y",            ahrs.getVelocityY());
+        SmartDashboard.putNumber(   "Displacement_X",        ahrs.getDisplacementX());
+        SmartDashboard.putNumber(   "Displacement_Y",        ahrs.getDisplacementY());
+
+            /*kP = SmartDashboard.getNumber("kP", .00);
+            kI = SmartDashboard.getNumber("kI", .00);
+            kD = SmartDashboard.getNumber("kD", .00);
+            kF = SmartDashboard.getNumber("kF", .00);*/
+
+        //turnController.setPID(kP, kI, kD, kF);
+        SmartDashboard.putNumber("kP", turnController.getP());
+        SmartDashboard.putNumber("kI", turnController.getI());
+        SmartDashboard.putNumber("kD", turnController.getD());
+        SmartDashboard.putNumber("kF", turnController.getF());
+
+        SmartDashboard.putBoolean("isCentric", isFieldCentric);
+
+        SmartDashboard.putNumber(   "Target",            turnController.getSetpoint());
+        SmartDashboard.putNumber(   "Set Point",            turnController.getSetpoint());
+        SmartDashboard.putBoolean(   "onTarget",            turnController.onTarget());
+
+
+        SmartDashboard.putNumber(   "Xbox X",            controller.getX(leftHand));
+        SmartDashboard.putNumber(   "Xbox Y",            controller.getY(leftHand));
+        SmartDashboard.putNumber(   "Rotate to Angle Rate",        rotateToAngleRate);
+        SmartDashboard.putNumber(   "Get Angle",               ahrs.getAngle());
+
+        SmartDashboard.putBoolean("NavX Connected", ahrs.isConnected());
+
+        SmartDashboard.putBoolean("Arms Up", armsUp);
     }
 
     public void teleopInit(){
@@ -166,7 +227,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void reset(){
-        if (controller.getStartButton()) {
+        if (controller.getAButton()) {
             ahrs.reset();
         }
     }
@@ -203,9 +264,9 @@ public class Robot extends TimedRobot implements PIDOutput {
         if(controller.getTriggerAxis(leftHand) > 0.05 && controller.getTriggerAxis(rightHand) > 0.05) {
             return;
         } else if (controller.getTriggerAxis(leftHand) > 0.05) {
-            myDrive.driveCartesian(controller.getTriggerAxis(leftHand), 0, 0);
+            myDrive.driveCartesian(controller.getTriggerAxis(leftHand), 0, controller.getX(rightHand));
         } else if (controller.getTriggerAxis(rightHand) > 0.05) {
-            myDrive.driveCartesian(-controller.getTriggerAxis(rightHand), 0, 0);
+            myDrive.driveCartesian(-controller.getTriggerAxis(rightHand), 0, controller.getX(rightHand));
         } else {
             return;
         }
@@ -213,8 +274,8 @@ public class Robot extends TimedRobot implements PIDOutput {
 
     public void spinArms(){
         if(intakeActive){
-            leftArm.set(-.35);
-            rightArm.set(.35);
+            leftArm.set(-.25);
+            rightArm.set(.25);
         } else {
             leftArm.set(0);
             rightArm.set(0);
@@ -266,9 +327,9 @@ public class Robot extends TimedRobot implements PIDOutput {
 
     private void hatchMech(){
         if(secondary.getRawButton(1)){
-            hatchMechanism.set(DoubleSolenoid.Value.kReverse);
-        } else {
             hatchMechanism.set(DoubleSolenoid.Value.kForward);
+        } else {
+            hatchMechanism.set(DoubleSolenoid.Value.kReverse);
         }
     }
 
