@@ -82,7 +82,29 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void autonomousPeriodic(){
+        while (isAutonomous()) {
+            run();
+            smartDash();
+            Timer.delay(.005);
+        }
+    }
+
+    public void teleopInit(){
+        turnController.enable();
+        myDrive.setSafetyEnabled(true);
+    }
+
+    public void teleopPeriodic() {
+        while(isOperatorControl()) { // avoid extra teleop baggage
+            run();
+            smartDash();
+            Timer.delay(.005); // a bit odd, but told to not remove
+        }
+    }
+
+    public void run() {
         hatchMech();
+        deployHatchMech();
         reset();
         spinArms();
         adjustElevator();
@@ -102,119 +124,20 @@ public class Robot extends TimedRobot implements PIDOutput {
         } else {
             driveStandard();
         }
+    }
 
-        SmartDashboard.putNumber("angle", ahrs.getAngle());
-        SmartDashboard.putNumber(   "IMU_Yaw",               ahrs.getYaw());
-        SmartDashboard.putNumber(   "IMU_FusedHeading",      ahrs.getFusedHeading());
-        SmartDashboard.putNumber(   "IMU_TotalYaw",          ahrs.getAngle());
-        SmartDashboard.putNumber(   "IMU_YawRateDPS",        ahrs.getRate());
-        SmartDashboard.putNumber(   "IMU_Accel_X",           ahrs.getWorldLinearAccelX());
-        SmartDashboard.putNumber(   "IMU_Accel_Y",           ahrs.getWorldLinearAccelY());
-        SmartDashboard.putBoolean(  "IMU_IsMoving",          ahrs.isMoving());
-        SmartDashboard.putBoolean(  "IMU_IsRotating",        ahrs.isRotating());
-        SmartDashboard.putNumber(   "Velocity_X",            ahrs.getVelocityX());
-        SmartDashboard.putNumber(   "Velocity_Y",            ahrs.getVelocityY());
-        SmartDashboard.putNumber(   "Displacement_X",        ahrs.getDisplacementX());
-        SmartDashboard.putNumber(   "Displacement_Y",        ahrs.getDisplacementY());
-
-            /*kP = SmartDashboard.getNumber("kP", .00);
-            kI = SmartDashboard.getNumber("kI", .00);
-            kD = SmartDashboard.getNumber("kD", .00);
-            kF = SmartDashboard.getNumber("kF", .00);*/
-
-        //turnController.setPID(kP, kI, kD, kF);
-        SmartDashboard.putNumber("kP", turnController.getP());
-        SmartDashboard.putNumber("kI", turnController.getI());
-        SmartDashboard.putNumber("kD", turnController.getD());
-        SmartDashboard.putNumber("kF", turnController.getF());
-
+    public void smartDash() {
         SmartDashboard.putBoolean("isCentric", isFieldCentric);
 
         SmartDashboard.putNumber(   "Target",            turnController.getSetpoint());
         SmartDashboard.putNumber(   "Set Point",            turnController.getSetpoint());
         SmartDashboard.putBoolean(   "onTarget",            turnController.onTarget());
-
-
-        SmartDashboard.putNumber(   "Xbox X",            controller.getX(leftHand));
-        SmartDashboard.putNumber(   "Xbox Y",            controller.getY(leftHand));
         SmartDashboard.putNumber(   "Rotate to Angle Rate",        rotateToAngleRate);
         SmartDashboard.putNumber(   "Get Angle",               ahrs.getAngle());
 
         SmartDashboard.putBoolean("NavX Connected", ahrs.isConnected());
 
         SmartDashboard.putBoolean("Arms Up", armsUp);
-    }
-
-    public void teleopInit(){
-        turnController.enable();
-        myDrive.setSafetyEnabled(true);
-    }
-
-    public void teleopPeriodic() {
-        while(isOperatorControl()) {
-            hatchMech();
-            reset();
-            spinArms();
-            adjustElevator();
-            runIntake();
-            centricToggle();
-
-            if (!ahrs.isConnected()) {
-                isFieldCentric = false;
-            }
-
-            if (controller.getTriggerAxis(leftHand) > 0.05 || controller.getTriggerAxis(rightHand) > 0.05) {
-                strafe();
-                snapToAngle();
-            } else if (isFieldCentric) {
-                driveCentric();
-                snapToAngle();
-            } else {
-                driveStandard();
-            }
-
-            SmartDashboard.putNumber("angle", ahrs.getAngle());
-            SmartDashboard.putNumber(   "IMU_Yaw",               ahrs.getYaw());
-            SmartDashboard.putNumber(   "IMU_FusedHeading",      ahrs.getFusedHeading());
-            SmartDashboard.putNumber(   "IMU_TotalYaw",          ahrs.getAngle());
-            SmartDashboard.putNumber(   "IMU_YawRateDPS",        ahrs.getRate());
-            SmartDashboard.putNumber(   "IMU_Accel_X",           ahrs.getWorldLinearAccelX());
-            SmartDashboard.putNumber(   "IMU_Accel_Y",           ahrs.getWorldLinearAccelY());
-            SmartDashboard.putBoolean(  "IMU_IsMoving",          ahrs.isMoving());
-            SmartDashboard.putBoolean(  "IMU_IsRotating",        ahrs.isRotating());
-            SmartDashboard.putNumber(   "Velocity_X",            ahrs.getVelocityX());
-            SmartDashboard.putNumber(   "Velocity_Y",            ahrs.getVelocityY());
-            SmartDashboard.putNumber(   "Displacement_X",        ahrs.getDisplacementX());
-            SmartDashboard.putNumber(   "Displacement_Y",        ahrs.getDisplacementY());
-
-            /*kP = SmartDashboard.getNumber("kP", .00);
-            kI = SmartDashboard.getNumber("kI", .00);
-            kD = SmartDashboard.getNumber("kD", .00);
-            kF = SmartDashboard.getNumber("kF", .00);*/
-
-            //turnController.setPID(kP, kI, kD, kF);
-            SmartDashboard.putNumber("kP", turnController.getP());
-            SmartDashboard.putNumber("kI", turnController.getI());
-            SmartDashboard.putNumber("kD", turnController.getD());
-            SmartDashboard.putNumber("kF", turnController.getF());
-
-            SmartDashboard.putBoolean("isCentric", isFieldCentric);
-
-            SmartDashboard.putNumber(   "Target",            turnController.getSetpoint());
-            SmartDashboard.putNumber(   "Set Point",            turnController.getSetpoint());
-            SmartDashboard.putBoolean(   "onTarget",            turnController.onTarget());
-
-
-            SmartDashboard.putNumber(   "Xbox X",            controller.getX(leftHand));
-            SmartDashboard.putNumber(   "Xbox Y",            controller.getY(leftHand));
-            SmartDashboard.putNumber(   "Rotate to Angle Rate",        rotateToAngleRate);
-            SmartDashboard.putNumber(   "Get Angle",               ahrs.getAngle());
-
-            SmartDashboard.putBoolean("NavX Connected", ahrs.isConnected());
-
-            SmartDashboard.putBoolean("Arms Up", armsUp);
-            Timer.delay(.005);
-        }
     }
 
     @Override
@@ -261,14 +184,19 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void strafe(){
+        double val = controller.getTriggerAxis(leftHand) - controller.getTriggerAxis(rightHand);
         if(controller.getTriggerAxis(leftHand) > 0.05 && controller.getTriggerAxis(rightHand) > 0.05) {
-            return;
-        } else if (controller.getTriggerAxis(leftHand) > 0.05) {
-            myDrive.driveCartesian(controller.getTriggerAxis(leftHand), 0, controller.getX(rightHand));
-        } else if (controller.getTriggerAxis(rightHand) > 0.05) {
-            myDrive.driveCartesian(-controller.getTriggerAxis(rightHand), 0, controller.getX(rightHand));
+            myDrive.driveCartesian(val, 0, controller.getX(rightHand));
         } else {
             return;
+        }
+    }
+
+    public void deployHatchMech() {
+        if (controller.getYButton()) {
+            hatchDeploy.set(DoubleSolenoid.Value.kReverse);
+        } else {
+            hatchDeploy.set(DoubleSolenoid.Value.kForward);
         }
     }
 
@@ -294,7 +222,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         } else if(secondary.getRawButton(3)) {
             lifter.setTarget(0);
         }  else {
-            return;
+            return; // TODO: this looks like it should be removed...
         }
 
         lifter.run();
