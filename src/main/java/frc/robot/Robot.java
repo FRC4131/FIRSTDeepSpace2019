@@ -38,14 +38,15 @@ public class Robot extends TimedRobot implements PIDOutput {
     private static boolean isFieldCentric = true;
     private static boolean armsUp = true;
     private static boolean intakeActive = false;
+    private static boolean isHatchDown = false;
 
     //the centers of the two retro-reflective targets, if both the x and y of a target are zero it isn't detected
     private static double zeroCenterX, zeroCenterY, oneCenterX, oneCenterY;
 
-    WPI_TalonSRX frontRight = new WPI_TalonSRX(3);
-    WPI_TalonSRX backRight = new WPI_TalonSRX(1);
-    WPI_TalonSRX frontLeft = new WPI_TalonSRX(4);
-    WPI_TalonSRX backLeft = new WPI_TalonSRX(2);
+    WPI_TalonSRX frontRight = new WPI_TalonSRX(2);
+    WPI_TalonSRX backRight = new WPI_TalonSRX(4);
+    WPI_TalonSRX frontLeft = new WPI_TalonSRX(1);
+    WPI_TalonSRX backLeft = new WPI_TalonSRX(3);
     WPI_TalonSRX leftArm = new WPI_TalonSRX(5);
     WPI_TalonSRX rightArm = new WPI_TalonSRX(6);
     WPI_TalonSRX elevator = new WPI_TalonSRX(7);
@@ -128,7 +129,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         runIntake();
         centricToggle();
 
-        if (controller.getRawButton(5)) {
+        if (controller.getRawButton(1)) {
             autoStrafer.run();
             return;
         }
@@ -137,7 +138,7 @@ public class Robot extends TimedRobot implements PIDOutput {
             isFieldCentric = false;
         }
 
-        if (controller.getTriggerAxis(leftHand) > 0.05 || controller.getTriggerAxis(rightHand) > 0.05) {
+        if (controller.getTriggerAxis(leftHand) > 0.05 ^ controller.getTriggerAxis(rightHand) > 0.05) {
             strafe();
             snapToAngle();
         } else if (isFieldCentric) {
@@ -180,6 +181,11 @@ public class Robot extends TimedRobot implements PIDOutput {
         SmartDashboard.putNumber("zeroY", zeroCenterY);
         SmartDashboard.putNumber("oneX", oneCenterX);
         SmartDashboard.putNumber("oneY", oneCenterY);
+
+        double P = SmartDashboard.getNumber("strafe_P", 0);
+        double I = SmartDashboard.getNumber("strafe_I", 0);
+        double D = SmartDashboard.getNumber("strafe_D", 0);
+        strafeController.setPID(P, I, D);
     }
 
     @Override
@@ -192,13 +198,13 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void reset(){
-        if (controller.getAButton()) {
+        if (controller.getRawButton(3)) {
             ahrs.reset();
         }
     }
 
     public void centricToggle() {
-        if (controller.getBackButtonReleased()) {
+        if (controller.getRawButtonReleased(5)) {
             isFieldCentric = !isFieldCentric;
         }
     }
@@ -223,20 +229,22 @@ public class Robot extends TimedRobot implements PIDOutput {
         }
     }
 
-    public void strafe(){
-        double val = controller.getTriggerAxis(leftHand) - controller.getTriggerAxis(rightHand);
-        if(controller.getTriggerAxis(leftHand) > 0.05 && controller.getTriggerAxis(rightHand) > 0.05) {
-            myDrive.driveCartesian(val, 0, controller.getX(rightHand));
+    public void strafe() {
+        if(controller.getTriggerAxis(leftHand) > 0.05) {
+            myDrive.driveCartesian(-controller.getTriggerAxis(leftHand), 0, controller.getX(rightHand));
         } else {
-            return;
+            myDrive.driveCartesian(controller.getTriggerAxis(rightHand), 0, controller.getX(rightHand));
         }
     }
 
     public void deployHatchMech() {
-        if (controller.getYButton()) {
-            hatchDeploy.set(DoubleSolenoid.Value.kReverse);
-        } else {
+        if (isHatchDown) {
             hatchDeploy.set(DoubleSolenoid.Value.kForward);
+        } else {
+            hatchDeploy.set(DoubleSolenoid.Value.kReverse);
+        }
+        if (secondary.getRawButtonReleased(5)) {
+            isHatchDown = !isHatchDown;
         }
     }
 
@@ -251,8 +259,8 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void driveCentric(){
-//        myDrive.driveCartesian(-controller.getX(leftHand), controller.getY(leftHand), rotateToAngleRate, ahrs.getAngle() - 2*turnController.getSetpoint());
-        myDrive.driveCartesian(controller.getY(leftHand), controller.getX(leftHand), rotateToAngleRate, ahrs.getAngle());
+        myDrive.driveCartesian(-controller.getX(leftHand), controller.getY(leftHand), rotateToAngleRate, ahrs.getAngle() - 2*turnController.getSetpoint());
+//        myDrive.driveCartesian(controller.getY(leftHand), controller.getX(leftHand), rotateToAngleRate, ahrs.getAngle());
     }
 
     private void adjustElevator(){
@@ -298,7 +306,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void driveStandard() {
-        myDrive.driveCartesian(-controller.getX(leftHand), controller.getY(leftHand), controller.getX(rightHand));
+        myDrive.driveCartesian(controller.getX(leftHand), -controller.getY(leftHand), controller.getX(rightHand));
     }
 
     public void strafeCentric(double val) { //TODO: test
@@ -332,7 +340,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         public double pidGet() {
             if (pidSourceType == PIDSourceType.kDisplacement) {
                 // assumes 0 is center of frame
-                return (zeroCenterX + oneCenterX) / 2;
+                return (zeroCenterX + oneCenterX) / (oneCenterX - zeroCenterX);
             } else {
                 // I don't really care about velocity for these... I think.
                 // TODO: If it doesn't work, may need to implement kVelocity
