@@ -2,10 +2,7 @@ package frc.robot;
 
 import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.FeedbackDevice;
-import com.ctre.phoenix.motorcontrol.StatusFrameEnhanced;
-import com.ctre.phoenix.motorcontrol.can.TalonSRX;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
-import edu.wpi.first.wpilibj.*;
 
 /**
  * An instance of the lifter/elevator which may influence cargo and hatches.
@@ -70,19 +67,9 @@ public class Lifter {
         talon.config_kP(0, 0.5);
         talon.config_kI(0, 0);
         talon.config_kD(0, 0);
-//        talon.setStatusFramePeriod(StatusFrameEnhanced.Status_2_Feedback0, 30);
+        //talon.setStatusFramePeriod(StatusFrameEnhanced.Status_2_Feedback0, 30);
         talon.setSelectedSensorPosition(0);
     }
-
-//    public void moveToLevel(int level) {
-//        // TODO: redo, remap levels
-//        if (level == 0) {
-//            this.moveToEncoder(0);
-//        } else {
-//            double target = ((level-1) * PORT_INTERVAL + PORT_LOW - LOWEST_CARGO_CENTER) * TICKS_PER_VERTICAL_INCH;
-//            this.moveToEncoder((int) target);
-//        }
-//    }
 
     public void run() {
         talon.set(ControlMode.Position, target);

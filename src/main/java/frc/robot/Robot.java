@@ -12,12 +12,14 @@ import edu.wpi.first.wpilibj.GenericHID.Hand;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class Robot extends TimedRobot implements PIDOutput {
 
     Hand leftHand = GenericHID.Hand.kLeft;
     Hand rightHand = GenericHID.Hand.kRight;
     XboxController controller = new XboxController(0);
-    //XboxController secondary = controller;
     XboxController secondary = new XboxController(1);
 
     Compressor compressor = new Compressor(61);
@@ -29,11 +31,6 @@ public class Robot extends TimedRobot implements PIDOutput {
     private static double kFTurn = 0.00;
     private static double kToleranceDegrees = 2.0f;
 
-    private static double kP = 0.00;
-    private static double kI = 0.00;
-    private static double kD = 0.00;
-    private static double kF = 0.00;
-
     private static boolean hadDoublePOV = false; // TODO: rename because a bit misleading
     private static boolean isFieldCentric = true;
     private static boolean armsUp = true;
@@ -42,7 +39,16 @@ public class Robot extends TimedRobot implements PIDOutput {
 
     //the centers of the two retro-reflective targets, if both the x and y of a target are zero it isn't detected
     private static double zeroCenterX, zeroCenterY, oneCenterX, oneCenterY;
-    private static double contures;
+    private static double contours;
+
+    private static Map<Integer, Integer> angleMapping = new HashMap<>();
+
+    static {
+        angleMapping.put(45, 30);
+        angleMapping.put(135, 150);
+        angleMapping.put(225, 240);
+        angleMapping.put(315, 330);
+    }
 
     WPI_TalonSRX frontRight = new WPI_TalonSRX(2);
     WPI_TalonSRX backRight = new WPI_TalonSRX(4);
@@ -65,7 +71,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     PIDController turnController = new PIDController(kPTurn, kITurn, kDTurn,kFTurn, ahrs, this);
 
     AutoStrafer autoStrafer = new AutoStrafer();
-    PIDController strafeController = new PIDController(0.04, 0, 0, 0, autoStrafer, autoStrafer);
+    PIDController strafeController = new PIDController(2.0, 0, 0, 0, autoStrafer, autoStrafer);
 
     public void robotInit() {
         elevator.setSelectedSensorPosition(0);
@@ -85,7 +91,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         turnController.enable();
         turnController.setSetpoint(0);
 
-//        strafeController.setInputRange(-1000, 1000);
+        //strafeController.setInputRange(-1000, 1000);
         strafeController.setOutputRange(-1, 1);
         strafeController.setAbsoluteTolerance(5);
         strafeController.setContinuous(false);
@@ -96,10 +102,12 @@ public class Robot extends TimedRobot implements PIDOutput {
     public void autonomousInit(){
         turnController.enable();
         myDrive.setSafetyEnabled(true);
+        isHatchDown = true;
     }
 
     public void autonomousPeriodic(){
         while (isAutonomous()) {
+            ntReader();
             run();
             smartDash();
             Timer.delay(.005);
@@ -109,10 +117,12 @@ public class Robot extends TimedRobot implements PIDOutput {
     public void teleopInit(){
         turnController.enable();
         myDrive.setSafetyEnabled(true);
+        isHatchDown = true;
     }
 
     public void teleopPeriodic() {
         while(isOperatorControl()) { // avoid extra teleop baggage
+            ntReader();
             run();
             smartDash();
             Timer.delay(.005); // a bit odd, but told to not remove
@@ -120,7 +130,6 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void run() {
-        ntReader();
         hatchMech();
         deployHatchMech();
         reset();
@@ -154,14 +163,14 @@ public class Robot extends TimedRobot implements PIDOutput {
         NetworkTableEntry zeroY = table.getEntry("zeroY");
         NetworkTableEntry oneX = table.getEntry("oneX");
         NetworkTableEntry oneY = table.getEntry("oneY");
-        NetworkTableEntry contures = table.getEntry("contoursCount");
+        NetworkTableEntry contours = table.getEntry("contoursCount");
         inst.startServer();
         inst.setServerTeam(4131);
         this.zeroCenterX = zeroX.getDouble(0);
         this.zeroCenterY = zeroY.getDouble(0);
         this.oneCenterX = oneX.getDouble(0);
         this.oneCenterY = oneY.getDouble(0);
-        this.contures = contures.getDouble(0.0);
+        this.contours = contours.getDouble(0);
     }
 
     public void smartDash() {
@@ -181,12 +190,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         SmartDashboard.putNumber("zeroY", zeroCenterY);
         SmartDashboard.putNumber("oneX", oneCenterX);
         SmartDashboard.putNumber("oneY", oneCenterY);
-        SmartDashboard.putNumber("contures", contures);
-
-        double P = SmartDashboard.getNumber("strafe_P", 0);
-        double I = SmartDashboard.getNumber("strafe_I", 0);
-        double D = SmartDashboard.getNumber("strafe_D", 0);
-        strafeController.setPID(P, I, D);
+        SmartDashboard.putNumber("contours", contours);
     }
 
     @Override
@@ -217,6 +221,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         }
 
         int controllerPOV = controller.getPOV();
+        controllerPOV = angleMapping.getOrDefault(controllerPOV, controllerPOV);
 
         if (controllerPOV > 180) {
             controllerPOV -= 360;
@@ -227,14 +232,6 @@ public class Robot extends TimedRobot implements PIDOutput {
             turnController.setSetpoint(controllerPOV);
         } else if (!hadDoublePOV) { // controller POV only has one pressed AND no double POV pressed yet
             turnController.setSetpoint(controllerPOV);
-        }
-    }
-
-    public void strafe() {
-        if(controller.getTriggerAxis(leftHand) > 0.05) {
-            myDrive.driveCartesian(-controller.getTriggerAxis(leftHand), 0, controller.getX(rightHand));
-        } else {
-            myDrive.driveCartesian(controller.getTriggerAxis(rightHand), 0, controller.getX(rightHand));
         }
     }
 
@@ -251,16 +248,12 @@ public class Robot extends TimedRobot implements PIDOutput {
 
     public void spinArms(){
         if(intakeActive){
-            leftArm.set(-.28);
-            rightArm.set(.28);
+            leftArm.set(-.35);
+            rightArm.set(.35);
         } else {
             leftArm.set(0);
             rightArm.set(0);
         }
-    }
-
-    public void driveCentric(){
-        myDrive.driveCartesian(-controller.getX(leftHand), controller.getY(leftHand), rotateToAngleRate, -ahrs.getAngle());
     }
 
     private void adjustElevator(){
@@ -279,7 +272,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         }
 
         if (intakeActive) {
-            intake.set(.75);
+            intake.set(1);
         } else if (secondary.getTriggerAxis(leftHand) > 0.05 || secondary.getTriggerAxis(rightHand) > 0.05) {
             intake.set(-1);
         } else {
@@ -305,12 +298,16 @@ public class Robot extends TimedRobot implements PIDOutput {
         }
     }
 
+    public void driveCentric(){
+        myDrive.driveCartesian(-controller.getX(leftHand), controller.getY(leftHand), rotateToAngleRate, -ahrs.getAngle());
+    }
+
     public void driveStandard() {
         myDrive.driveCartesian(controller.getX(leftHand), -controller.getY(leftHand), controller.getX(rightHand));
     }
 
     public void strafeCentric(double val) { //TODO: test
-        myDrive.driveCartesian(val, 0, rotateToAngleRate, -ahrs.getAngle());
+        myDrive.driveCartesian(val, controller.getY(leftHand), rotateToAngleRate, -ahrs.getAngle());
     }
 
     private class AutoStrafer implements PIDSource, PIDOutput {
@@ -324,6 +321,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         @Override
         public void pidWrite(double output) {
             pidOut = output;
+            SmartDashboard.putNumber("strafe val", pidOut);
         }
 
         @Override
@@ -340,7 +338,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         public double pidGet() {
             if (pidSourceType == PIDSourceType.kDisplacement) {
                 // assumes 0 is center of frame
-                return (zeroCenterX + oneCenterX) / (oneCenterX - zeroCenterX);
+                return (160 - (zeroCenterX + oneCenterX)/2) / (oneCenterX - zeroCenterX);
             } else {
                 // I don't really care about velocity for these... I think.
                 // TODO: If it doesn't work, may need to implement kVelocity

@@ -1,13 +1,14 @@
 package frc.robot;
 
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
+
 import com.kauailabs.navx.frc.AHRS;
+
 import edu.wpi.first.wpilibj.*;
 import edu.wpi.first.wpilibj.GenericHID.Hand;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
-import java.awt.*;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -17,9 +18,10 @@ import java.util.stream.Stream;
 
 
 public class AutoPID extends TimedRobot implements PIDOutput {
-	Hand LeftHand = Hand.kLeft;
-	Hand RightHand = Hand.kRight;
-	XboxController Controller = new XboxController(0);
+
+	Hand leftHand = Hand.kLeft;
+	Hand rightHand = Hand.kRight;
+	XboxController controller = new XboxController(0);
 	AHRS ahrs = new AHRS(SPI.Port.kMXP);
 
 	PIDController turnController;
@@ -34,15 +36,15 @@ public class AutoPID extends TimedRobot implements PIDOutput {
     private boolean isFieldCentric = true;
 
 	// Talons:
-	WPI_TalonSRX FrontRight = new WPI_TalonSRX(2);
-	WPI_TalonSRX BackRight = new WPI_TalonSRX(3);
-	WPI_TalonSRX FrontLeft = new WPI_TalonSRX(1);
-	WPI_TalonSRX BackLeft = new WPI_TalonSRX(4);
+	WPI_TalonSRX frontRight = new WPI_TalonSRX(2);
+	WPI_TalonSRX backRight = new WPI_TalonSRX(3);
+	WPI_TalonSRX frontLeft = new WPI_TalonSRX(1);
+	WPI_TalonSRX backLeft = new WPI_TalonSRX(4);
 
 	double rotateToAngleRate;
 
 	// Drive Base
-	MecanumDrive myDrive = new MecanumDrive(BackRight, FrontRight, BackLeft, FrontLeft);
+	MecanumDrive myDrive = new MecanumDrive(backRight, frontRight, backLeft, frontLeft);
 
 	public void robotInit() {
         turnController = new PIDController(kPTurn, kITurn, kDTurn, ahrs, this);
@@ -62,7 +64,8 @@ public class AutoPID extends TimedRobot implements PIDOutput {
     }
 
     private class PIDSet implements Comparable<PIDSet> {
-        private final double p;
+
+	    private final double p;
         private final double i;
         private final double d;
         LinkedList<Double> errors = new LinkedList<>();
@@ -81,7 +84,7 @@ public class AutoPID extends TimedRobot implements PIDOutput {
 
         @Override
         public int compareTo(PIDSet o) {
-            return (int) (10_000 * (this.getError() - o.getError()));
+	        return (int)(10_000 * (this.getError() - o.getError()));
         }
 
         public Set<PIDSet> recombine(PIDSet other) {
@@ -93,8 +96,8 @@ public class AutoPID extends TimedRobot implements PIDOutput {
             HashSet<PIDSet> out = new HashSet<>();
             out.add(new PIDSet(p, this.i, this.d));
             out.add(new PIDSet(p, other.i, other.d));
-//            out.add(new PIDSet(this.p, i, this.d));
-//            out.add(new PIDSet(this.p, this.i, d));
+            //out.add(new PIDSet(this.p, i, this.d));
+            //out.add(new PIDSet(this.p, this.i, d));
 
             return out;
         }
@@ -150,7 +153,7 @@ public class AutoPID extends TimedRobot implements PIDOutput {
         myDrive.stopMotor();
 
         if (isFieldCentric) {
-//            driveCentric();
+            //driveCentric();
             SnapToAngle();
         } else {
             driveStandard();
@@ -161,7 +164,7 @@ public class AutoPID extends TimedRobot implements PIDOutput {
         SmartDashboard.putNumber("Y Displacement", ahrs.getDisplacementY());
         SmartDashboard.putNumber("Target", turnController.getSetpoint());
         SmartDashboard.putNumber("Yaw", ahrs.getYaw());
-        SmartDashboard.putNumber("POV", Controller.getPOV());
+        SmartDashboard.putNumber("POV", controller.getPOV());
         SmartDashboard.putBoolean("hadDoublePOV", hadDoublePOV);
         SmartDashboard.putBoolean("Field Centric Enabled", isFieldCentric);
 
@@ -218,9 +221,7 @@ public class AutoPID extends TimedRobot implements PIDOutput {
 	        return false;
         }
 
-	    double velocity = Math.sqrt(
-	            Math.pow(ahrs.getVelocityX(), 2) + Math.pow(ahrs.getVelocityY(), 2) + Math.pow(ahrs.getVelocityZ(), 2)
-        );
+	    double velocity = Math.sqrt(Math.pow(ahrs.getVelocityX(), 2) + Math.pow(ahrs.getVelocityY(), 2) + Math.pow(ahrs.getVelocityZ(), 2));
 
         final double rateThreshold = 0.5; // degrees / second
         final double velocityThreshold = 0.1; // meters / second
@@ -231,7 +232,7 @@ public class AutoPID extends TimedRobot implements PIDOutput {
     private Set<PIDSet> getNextPID() {
         Stream<PIDSet> bestPIDs = PIDAdjustment.stream().sorted();
         Iterator<PIDSet> best = bestPIDs.limit(2).iterator();
-        // assume at least 2 present
+        //assume at least 2 present
         PIDSet a = best.next();
         PIDSet b = best.next();
 
@@ -239,7 +240,7 @@ public class AutoPID extends TimedRobot implements PIDOutput {
     }
 
     private PIDSet getBestPID() {
-        return PIDAdjustment.stream().sorted().findFirst().get();
+	    return PIDAdjustment.stream().sorted().findFirst().get();
     }
 
 	@Override
@@ -248,35 +249,35 @@ public class AutoPID extends TimedRobot implements PIDOutput {
 	}
 
 	public void Reset() {
-        if (Controller.getRawButton(1)) {
+        if (controller.getRawButton(1)) {
             ahrs.reset();
             turnController.setSetpoint(0);
         }
     }
 
     public void centricToggle() {
-	    if (Controller.getStartButtonPressed()) {
+	    if (controller.getStartButtonPressed()) {
 	        isFieldCentric = !isFieldCentric;
         }
     }
 
     public void SnapToAngle(){
-	    if (Controller.getPOV() == -1) { // no controller POV pressed
+	    if (controller.getPOV() == -1) { // no controller POV pressed
 	        hadDoublePOV = false;
 	        return;
         }
 
-	    if (Controller.getPOV() == 90) {
+	    if (controller.getPOV() == 90) {
 	        setupPIDSet();
-        } else if (Controller.getPOV() == 180) {
+        } else if (controller.getPOV() == 180) {
 	        PIDAdjustment = PIDAdjustment.stream().sorted().limit(4).collect(Collectors.toSet());
-        } else if (Controller.getPOV() == 270) {
+        } else if (controller.getPOV() == 270) {
 //	        improveBestPID();
         }
 
         double before = turnController.getSetpoint();
 
-        int controllerPOV = Controller.getPOV();
+        int controllerPOV = controller.getPOV();
         if (controllerPOV > 180) {
             controllerPOV -= 360;
         }
@@ -295,11 +296,11 @@ public class AutoPID extends TimedRobot implements PIDOutput {
     }
 
     public void driveCentric(){
-        myDrive.driveCartesian(Controller.getX(LeftHand), -Controller.getY(LeftHand),
+        myDrive.driveCartesian(controller.getX(leftHand), -controller.getY(leftHand),
                 rotateToAngleRate, ahrs.getYaw()- 2 * turnController.getSetpoint());
     }
 
     public void driveStandard() {
-	    myDrive.driveCartesian(Controller.getX(LeftHand), -Controller.getY(LeftHand), Controller.getX(RightHand));
+	    myDrive.driveCartesian(controller.getX(leftHand), -controller.getY(leftHand), controller.getX(rightHand));
 	}
 }
