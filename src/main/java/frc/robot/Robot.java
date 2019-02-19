@@ -12,6 +12,7 @@ import edu.wpi.first.wpilibj.GenericHID.Hand;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
+import javax.crypto.Mac;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,8 +39,8 @@ public class Robot extends TimedRobot implements PIDOutput {
     private static boolean isHatchDown = false;
 
     //the centers of the two retro-reflective targets, if both the x and y of a target are zero it isn't detected
-    private static double zeroCenterX, zeroCenterY, oneCenterX, oneCenterY;
-    private static double contours;
+    private static double ballZeroCenterX, ballZeroCenterY, ballOneCenterX, ballOneCenterY, hatchZeroCenterX, hatchZeroCenterY, hatchOneCenterX, hatchOneCenterY;
+    private static double ballContours, hatchContours;
 
     private static Map<Integer, Integer> angleMapping = new HashMap<>();
 
@@ -71,7 +72,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     PIDController turnController = new PIDController(kPTurn, kITurn, kDTurn,kFTurn, ahrs, this);
 
     AutoStrafer autoStrafer = new AutoStrafer();
-    PIDController strafeController = new PIDController(2.0, 0, 0, 0, autoStrafer, autoStrafer);
+    PIDController strafeController = new PIDController(1.2, 0, 0.6, 0, autoStrafer, autoStrafer);
 
     public void robotInit() {
         elevator.setSelectedSensorPosition(0);
@@ -92,7 +93,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         turnController.setSetpoint(0);
 
         //strafeController.setInputRange(-1000, 1000);
-        strafeController.setOutputRange(-1, 1);
+        strafeController.setOutputRange(-0.5, 0.5);
         strafeController.setAbsoluteTolerance(5);
         strafeController.setContinuous(false);
         strafeController.enable();
@@ -159,18 +160,28 @@ public class Robot extends TimedRobot implements PIDOutput {
     private void ntReader() {
         NetworkTableInstance inst = NetworkTableInstance.getDefault();
         NetworkTable table = inst.getTable("vision");
-        NetworkTableEntry zeroX = table.getEntry("zeroX");
-        NetworkTableEntry zeroY = table.getEntry("zeroY");
-        NetworkTableEntry oneX = table.getEntry("oneX");
-        NetworkTableEntry oneY = table.getEntry("oneY");
-        NetworkTableEntry contours = table.getEntry("contoursCount");
+        NetworkTableEntry ballZeroX = table.getEntry("ballZeroX");
+        NetworkTableEntry ballZeroY = table.getEntry("ballZeroY");
+        NetworkTableEntry ballOneX = table.getEntry("ballOneX");
+        NetworkTableEntry ballOneY = table.getEntry("ballOneY");
+        NetworkTableEntry ballContours = table.getEntry("ballContoursCount");
+        NetworkTableEntry hatchZeroX = table.getEntry("hatchZeroX");
+        NetworkTableEntry hatchZeroY = table.getEntry("hatchZeroY");
+        NetworkTableEntry hatchOneX = table.getEntry("hatchOneX");
+        NetworkTableEntry hatchOneY = table.getEntry("hatchOneY");
+        NetworkTableEntry hatchContours = table.getEntry("hatchContoursCount");
         inst.startServer();
         inst.setServerTeam(4131);
-        this.zeroCenterX = zeroX.getDouble(0);
-        this.zeroCenterY = zeroY.getDouble(0);
-        this.oneCenterX = oneX.getDouble(0);
-        this.oneCenterY = oneY.getDouble(0);
-        this.contours = contours.getDouble(0);
+        this.ballZeroCenterX = ballZeroX.getDouble(0);
+        this.ballZeroCenterY = ballZeroY.getDouble(0);
+        this.ballOneCenterX = ballOneX.getDouble(0);
+        this.ballOneCenterY = ballOneY.getDouble(0);
+        this.ballContours = ballContours.getDouble(0);
+        this.hatchZeroCenterX = hatchZeroX.getDouble(0);
+        this.hatchZeroCenterY = hatchZeroY.getDouble(0);
+        this.hatchOneCenterX = hatchOneX.getDouble(0);
+        this.hatchOneCenterY = hatchOneY.getDouble(0);
+        this.hatchContours = hatchContours.getDouble(0);
     }
 
     public void smartDash() {
@@ -186,11 +197,16 @@ public class Robot extends TimedRobot implements PIDOutput {
 
         SmartDashboard.putBoolean("Arms Up", armsUp);
 
-        SmartDashboard.putNumber("zeroX", zeroCenterX);
-        SmartDashboard.putNumber("zeroY", zeroCenterY);
-        SmartDashboard.putNumber("oneX", oneCenterX);
-        SmartDashboard.putNumber("oneY", oneCenterY);
-        SmartDashboard.putNumber("contours", contours);
+        SmartDashboard.putNumber("ballZeroX", ballZeroCenterX);
+        SmartDashboard.putNumber("ballZeroY", ballZeroCenterY);
+        SmartDashboard.putNumber("ballOneX", ballOneCenterX);
+        SmartDashboard.putNumber("ballOneY", ballOneCenterY);
+        SmartDashboard.putNumber("ballContours", ballContours);
+        SmartDashboard.putNumber("hatchZeroX", hatchZeroCenterX);
+        SmartDashboard.putNumber("hatchZeroY", hatchZeroCenterY);
+        SmartDashboard.putNumber("hatchOneX", hatchOneCenterX);
+        SmartDashboard.putNumber("hatchOneY", hatchOneCenterY);
+        SmartDashboard.putNumber("hatchContours", hatchContours);
     }
 
     @Override
@@ -307,7 +323,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void strafeCentric(double val) { //TODO: test
-        myDrive.driveCartesian(val, controller.getY(leftHand), rotateToAngleRate, -ahrs.getAngle());
+        myDrive.driveCartesian(-val, controller.getY(leftHand), rotateToAngleRate, 0);
     }
 
     private class AutoStrafer implements PIDSource, PIDOutput {
@@ -336,9 +352,11 @@ public class Robot extends TimedRobot implements PIDOutput {
 
         @Override
         public double pidGet() {
+            double max = Math.max(hatchZeroCenterX, hatchOneCenterX);
+            double min = Math.min(hatchZeroCenterX, hatchOneCenterX);
             if (pidSourceType == PIDSourceType.kDisplacement) {
                 // assumes 0 is center of frame
-                return (160 - (zeroCenterX + oneCenterX)/2) / (oneCenterX - zeroCenterX);
+                return (184 - (max + min)/2) / (max - min);
             } else {
                 // I don't really care about velocity for these... I think.
                 // TODO: If it doesn't work, may need to implement kVelocity
