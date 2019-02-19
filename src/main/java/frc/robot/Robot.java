@@ -170,6 +170,8 @@ public class Robot extends TimedRobot implements PIDOutput {
         NetworkTableEntry hatchOneX = table.getEntry("hatchOneX");
         NetworkTableEntry hatchOneY = table.getEntry("hatchOneY");
         NetworkTableEntry hatchContours = table.getEntry("hatchContoursCount");
+        NetworkTableEntry debug = table.getEntry("debug");
+        SmartDashboard.putNumber("debug", debug.getNumber(0).doubleValue());
         inst.startServer();
         inst.setServerTeam(4131);
         this.ballZeroCenterX = ballZeroX.getDouble(0);
