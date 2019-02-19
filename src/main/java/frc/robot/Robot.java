@@ -26,7 +26,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     Compressor compressor = new Compressor(61);
 
     AHRS ahrs = new AHRS(SPI.Port.kMXP);
-    private static double kPTurn = 0.0105;
+    private static double kPTurn = 0.0085;
     private static double kITurn = 0.00;
     private static double kDTurn = 0.005;
     private static double kFTurn = 0.00;
@@ -72,7 +72,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     PIDController turnController = new PIDController(kPTurn, kITurn, kDTurn,kFTurn, ahrs, this);
 
     AutoStrafer autoStrafer = new AutoStrafer();
-    PIDController strafeController = new PIDController(1.2, 0, 0.6, 0, autoStrafer, autoStrafer);
+    PIDController strafeController = new PIDController(1.1, 0, 0.6, 0, autoStrafer, autoStrafer);
 
     public void robotInit() {
         elevator.setSelectedSensorPosition(0);
@@ -139,6 +139,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         lifter.run();
         runIntake();
         centricToggle();
+        snapToAngle();
 
         if (controller.getRawButton(1)) {
             autoStrafer.run();
@@ -151,7 +152,6 @@ public class Robot extends TimedRobot implements PIDOutput {
 
         if (isFieldCentric) {
             driveCentric();
-            snapToAngle();
         } else {
             driveStandard();
         }
@@ -184,6 +184,9 @@ public class Robot extends TimedRobot implements PIDOutput {
         this.hatchOneCenterX = hatchOneX.getDouble(0);
         this.hatchOneCenterY = hatchOneY.getDouble(0);
         this.hatchContours = hatchContours.getDouble(0);
+
+        NetworkTableEntry dir = table.getEntry("strings");
+        SmartDashboard.putString("dir", dir.getString("err"));
     }
 
     public void smartDash() {
@@ -266,8 +269,8 @@ public class Robot extends TimedRobot implements PIDOutput {
 
     public void spinArms(){
         if(intakeActive){
-            leftArm.set(-.35);
-            rightArm.set(.35);
+            leftArm.set(-.28);
+            rightArm.set(-.28);
         } else {
             leftArm.set(0);
             rightArm.set(0);
@@ -324,9 +327,13 @@ public class Robot extends TimedRobot implements PIDOutput {
         myDrive.driveCartesian(controller.getX(leftHand), -controller.getY(leftHand), controller.getX(rightHand));
     }
 
-    public void strafeCentric(double val) { //TODO: test
-        myDrive.driveCartesian(-val, controller.getY(leftHand), rotateToAngleRate, 0);
+    public void strafeCentric(double x) { //TODO: test
+        myDrive.driveCartesian(-x, controller.getY(leftHand), rotateToAngleRate, 0);
     }
+
+//    public void autoStrafeDrive() {
+//        strafeCentric(autoStrafer.pidOut, 0);
+//    }
 
     private class AutoStrafer implements PIDSource, PIDOutput {
         PIDSourceType pidSourceType = PIDSourceType.kDisplacement;
@@ -358,7 +365,7 @@ public class Robot extends TimedRobot implements PIDOutput {
             double min = Math.min(hatchZeroCenterX, hatchOneCenterX);
             if (pidSourceType == PIDSourceType.kDisplacement) {
                 // assumes 0 is center of frame
-                return (184 - (max + min)/2) / (max - min);
+                return (156 - (max + min)/2) / (max - min);
             } else {
                 // I don't really care about velocity for these... I think.
                 // TODO: If it doesn't work, may need to implement kVelocity
