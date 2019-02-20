@@ -290,8 +290,8 @@ public class Robot extends TimedRobot implements PIDOutput {
 
     public void spinArms(){
         if(intakeActive){
-            leftArm.set(-.28);
-            rightArm.set(-.28);
+            leftArm.set(-.42);
+            rightArm.set(-.42);
         } else {
             leftArm.set(0);
             rightArm.set(0);
