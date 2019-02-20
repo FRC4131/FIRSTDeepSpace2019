@@ -78,8 +78,8 @@ public class Robot extends TimedRobot implements PIDOutput {
     AutoDriver autoDriver = new AutoDriver();
     PIDController driveController = new PIDController(0.003, 0, 0.01, 0, autoDriver, autoDriver);
 
-    private static final double INTAKE_CURRENT_LIMIT = 12.5;
-    private static final int INTAKE_CURRENT_LIMIT_HARD = 15;
+    private static final double INTAKE_CURRENT_LIMIT = 20;
+    private static final int INTAKE_CURRENT_LIMIT_HARD = 30;
 
     public void robotInit() {
         elevator.setSelectedSensorPosition(0);
@@ -359,9 +359,10 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void autoStrafeDrive() {
-        double y = isStrafeAligned() ? autoDriver.pidOut : 0;
-
-        strafeCentric(autoStrafer.pidOut*0.9 + controller.getX(leftHand)*0.1, y*0.9 + controller.getY(leftHand)*0.1);
+        if (isStrafeAligned())
+            strafeCentric(autoStrafer.pidOut, autoDriver.pidOut);
+        else
+            strafeCentric(autoStrafer.pidOut, 0);
     }
 
     private boolean isStrafeAligned() {
