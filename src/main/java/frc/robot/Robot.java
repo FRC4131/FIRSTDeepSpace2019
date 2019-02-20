@@ -1,9 +1,7 @@
 package frc.robot;
 
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
-
 import com.kauailabs.navx.frc.AHRS;
-
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
@@ -12,7 +10,6 @@ import edu.wpi.first.wpilibj.GenericHID.Hand;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
-import javax.crypto.Mac;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -71,11 +68,24 @@ public class Robot extends TimedRobot implements PIDOutput {
     MecanumDrive myDrive = new MecanumDrive(frontLeft, backLeft, frontRight, backRight);
     PIDController turnController = new PIDController(kPTurn, kITurn, kDTurn,kFTurn, ahrs, this);
 
+    //TODO: send vision center to network tables
+    //too small - left too big - right
+    private static final double VISION_CENTER_X = 164;
+
     AutoStrafer autoStrafer = new AutoStrafer();
-    PIDController strafeController = new PIDController(1.1, 0, 0.6, 0, autoStrafer, autoStrafer);
+    PIDController strafeController = new PIDController(.75, 0, 0.6, 0, autoStrafer, autoStrafer);
+
+    AutoDriver autoDriver = new AutoDriver();
+    PIDController driveController = new PIDController(0.003, 0, 0.01, 0, autoDriver, autoDriver);
+
+    private static final double INTAKE_CURRENT_LIMIT = 12.5;
+    private static final int INTAKE_CURRENT_LIMIT_HARD = 15;
 
     public void robotInit() {
         elevator.setSelectedSensorPosition(0);
+
+        intake.configPeakCurrentLimit(0);
+        intake.configContinuousCurrentLimit(INTAKE_CURRENT_LIMIT_HARD);
 
         frontLeft.setInverted(true);
         backRight.setInverted(true);
@@ -92,12 +102,17 @@ public class Robot extends TimedRobot implements PIDOutput {
         turnController.enable();
         turnController.setSetpoint(0);
 
-        //strafeController.setInputRange(-1000, 1000);
         strafeController.setOutputRange(-0.5, 0.5);
         strafeController.setAbsoluteTolerance(5);
         strafeController.setContinuous(false);
         strafeController.enable();
         strafeController.setSetpoint(0);
+
+        driveController.setOutputRange(-0.4, 0.4);
+        driveController.setAbsoluteTolerance(5);
+        driveController.setContinuous(false);
+        driveController.enable();
+        driveController.setSetpoint(240); // pixel distance between targets when fully in (- a bit)
     }
 
     public void autonomousInit(){
@@ -142,7 +157,8 @@ public class Robot extends TimedRobot implements PIDOutput {
         snapToAngle();
 
         if (controller.getRawButton(1)) {
-            autoStrafer.run();
+//            autoStrafer.run();
+            autoStrafeDrive();
             return;
         }
 
@@ -212,6 +228,11 @@ public class Robot extends TimedRobot implements PIDOutput {
         SmartDashboard.putNumber("hatchOneX", hatchOneCenterX);
         SmartDashboard.putNumber("hatchOneY", hatchOneCenterY);
         SmartDashboard.putNumber("hatchContours", hatchContours);
+
+        SmartDashboard.putNumber("intake current", intake.getOutputCurrent());
+        SmartDashboard.putNumber("pid for drive", autoDriver.pidOut);
+        SmartDashboard.putNumber("center average", (hatchZeroCenterX + hatchOneCenterX) / 2);
+        SmartDashboard.putNumber("center difference", hatchOneCenterX - hatchZeroCenterX);
     }
 
     @Override
@@ -292,6 +313,11 @@ public class Robot extends TimedRobot implements PIDOutput {
             intakeActive = !intakeActive;
         }
 
+        if (intake.getOutputCurrent() > INTAKE_CURRENT_LIMIT) {
+            intakeActive = false;
+            armsUp = true;
+        }
+
         if (intakeActive) {
             intake.set(1);
         } else if (secondary.getTriggerAxis(leftHand) > 0.05 || secondary.getTriggerAxis(rightHand) > 0.05) {
@@ -312,9 +338,10 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     private void hatchMech(){
-        if(secondary.getRawButton(1)){
+        if (secondary.getRawButtonPressed(1)) {
             hatchMechanism.set(DoubleSolenoid.Value.kForward);
-        } else {
+        }
+        if (secondary.getRawButtonReleased(1)) {
             hatchMechanism.set(DoubleSolenoid.Value.kReverse);
         }
     }
@@ -327,20 +354,27 @@ public class Robot extends TimedRobot implements PIDOutput {
         myDrive.driveCartesian(controller.getX(leftHand), -controller.getY(leftHand), controller.getX(rightHand));
     }
 
-    public void strafeCentric(double x) { //TODO: test
-        myDrive.driveCartesian(-x, controller.getY(leftHand), rotateToAngleRate, 0);
+    public void strafeCentric(double x, double y) { //TODO: test
+        myDrive.driveCartesian(-x, y, rotateToAngleRate, 0); // y as xSpeed is correct
     }
 
-//    public void autoStrafeDrive() {
-//        strafeCentric(autoStrafer.pidOut, 0);
-//    }
+    public void autoStrafeDrive() {
+        double y = isStrafeAligned() ? autoDriver.pidOut : 0;
+
+        strafeCentric(autoStrafer.pidOut*0.9 + controller.getX(leftHand)*0.1, y*0.9 + controller.getY(leftHand)*0.1);
+    }
+
+    private boolean isStrafeAligned() {
+        double offCenter = Math.abs(VISION_CENTER_X - (hatchZeroCenterX + hatchOneCenterX)/2);
+        return offCenter < 30;
+    }
 
     private class AutoStrafer implements PIDSource, PIDOutput {
         PIDSourceType pidSourceType = PIDSourceType.kDisplacement;
         double pidOut = 0;
 
         public void run() {
-            strafeCentric(pidOut);
+            strafeCentric(pidOut, controller.getY(leftHand));
         }
 
         @Override
@@ -365,7 +399,40 @@ public class Robot extends TimedRobot implements PIDOutput {
             double min = Math.min(hatchZeroCenterX, hatchOneCenterX);
             if (pidSourceType == PIDSourceType.kDisplacement) {
                 // assumes 0 is center of frame
-                return (156 - (max + min)/2) / (max - min);
+                return (VISION_CENTER_X - (max + min)/2) / (max - min);
+            } else {
+                // I don't really care about velocity for these... I think.
+                // TODO: If it doesn't work, may need to implement kVelocity
+                return 0;
+            }
+        }
+    }
+
+    private static class AutoDriver implements PIDSource, PIDOutput {
+        PIDSourceType pidSourceType = PIDSourceType.kDisplacement;
+        double pidOut = 0;
+
+        @Override
+        public void pidWrite(double output) {
+            pidOut = -output;
+        }
+
+        @Override
+        public void setPIDSourceType(PIDSourceType pidSource) {
+            this.pidSourceType = pidSource;
+        }
+
+        @Override
+        public PIDSourceType getPIDSourceType() {
+            return pidSourceType;
+        }
+
+        @Override
+        public double pidGet() {
+            double max = Math.max(hatchZeroCenterX, hatchOneCenterX);
+            double min = Math.min(hatchZeroCenterX, hatchOneCenterX);
+            if (pidSourceType == PIDSourceType.kDisplacement) {
+                return max - min;
             } else {
                 // I don't really care about velocity for these... I think.
                 // TODO: If it doesn't work, may need to implement kVelocity
