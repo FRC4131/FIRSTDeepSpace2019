@@ -78,6 +78,8 @@ public class Robot extends TimedRobot implements PIDOutput {
     AutoDriver autoDriver = new AutoDriver();
     PIDController driveController = new PIDController(0.003, 0, 0.01, 0, autoDriver, autoDriver);
 
+    NetworkTableInstance inst = NetworkTableInstance.getDefault();
+
     private static final double INTAKE_CURRENT_LIMIT = 20;
     private static final int INTAKE_CURRENT_LIMIT_HARD = 30;
 
@@ -113,6 +115,9 @@ public class Robot extends TimedRobot implements PIDOutput {
         driveController.setContinuous(false);
         driveController.enable();
         driveController.setSetpoint(240); // pixel distance between targets when fully in (- a bit)
+
+        inst.startServer();
+        inst.setServerTeam(4131);
     }
 
     public void autonomousInit(){
@@ -174,7 +179,6 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     private void ntReader() {
-        NetworkTableInstance inst = NetworkTableInstance.getDefault();
         NetworkTable table = inst.getTable("vision");
         NetworkTableEntry ballZeroX = table.getEntry("ballZeroX");
         NetworkTableEntry ballZeroY = table.getEntry("ballZeroY");
@@ -188,8 +192,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         NetworkTableEntry hatchContours = table.getEntry("hatchContoursCount");
         NetworkTableEntry debug = table.getEntry("debug");
         SmartDashboard.putNumber("debug", debug.getNumber(0).doubleValue());
-        inst.startServer();
-        inst.setServerTeam(4131);
+
         this.ballZeroCenterX = ballZeroX.getDouble(0);
         this.ballZeroCenterY = ballZeroY.getDouble(0);
         this.ballOneCenterX = ballOneX.getDouble(0);
@@ -290,8 +293,8 @@ public class Robot extends TimedRobot implements PIDOutput {
 
     public void spinArms(){
         if(intakeActive){
-            leftArm.set(-.42);
-            rightArm.set(-.42);
+            leftArm.set(-.28);
+            rightArm.set(-.28);
         } else {
             leftArm.set(0);
             rightArm.set(0);
