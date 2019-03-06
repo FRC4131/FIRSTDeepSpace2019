@@ -34,6 +34,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     private static boolean armsUp = true;
     private static boolean intakeActive = false;
     private static boolean isHatchDown = false;
+    private static boolean ballSwitch;
 
     //the centers of the two retro-reflective targets, if both the x and y of a target are zero it isn't detected
     private static double ballZeroCenterX, ballZeroCenterY, ballOneCenterX, ballOneCenterY, hatchZeroCenterX, hatchZeroCenterY, hatchOneCenterX, hatchOneCenterY;
@@ -58,6 +59,8 @@ public class Robot extends TimedRobot implements PIDOutput {
     WPI_TalonSRX intake = new WPI_TalonSRX(8);
 
     Lifter lifter = new Lifter(elevator);
+
+    DigitalInput ballSwitchIn = new DigitalInput(0);
 
     DoubleSolenoid hatchDeploy = new DoubleSolenoid(61, 2,3);
     DoubleSolenoid armsDeploy = new DoubleSolenoid(61, 4,5);
@@ -176,6 +179,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         } else {
             driveStandard();
         }
+        ballSwitch = ballSwitchIn.get();
     }
 
     private void ntReader() {
@@ -220,6 +224,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         SmartDashboard.putBoolean("NavX Connected", ahrs.isConnected());
 
         SmartDashboard.putBoolean("Arms Up", armsUp);
+        SmartDashboard.putBoolean("Ball switch", ballSwitch);
 
         SmartDashboard.putNumber("ballZeroX", ballZeroCenterX);
         SmartDashboard.putNumber("ballZeroY", ballZeroCenterY);
@@ -292,7 +297,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void spinArms(){
-        if(intakeActive){
+        if(intakeActive && !ballSwitch){
             leftArm.set(-.28);
             rightArm.set(-.28);
         } else {
@@ -305,7 +310,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         SmartDashboard.putNumber("elevator Encoder", elevator.getSelectedSensorPosition());
 
         if(secondary.getRawButton(4)) {
-            lifter.setTarget(11300);
+            lifter.setTarget(-12500);
         } else if(secondary.getRawButton(3)) {
             lifter.setTarget(0);
         }
@@ -314,6 +319,11 @@ public class Robot extends TimedRobot implements PIDOutput {
     private void runIntake() {
         if (secondary.getBButtonReleased()) {
             intakeActive = !intakeActive;
+        }
+
+        if (ballSwitch) {
+            intakeActive = false;
+            armsUp = true;
         }
 
         if (intake.getOutputCurrent() > INTAKE_CURRENT_LIMIT) {

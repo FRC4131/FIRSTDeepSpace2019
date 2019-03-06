@@ -55,8 +55,8 @@ public class Lifter {
 
         talon.configNominalOutputForward(0);
         talon.configNominalOutputReverse(0);
-        talon.configPeakOutputForward(0.5);
-        talon.configPeakOutputReverse(-0.5);
+        talon.configPeakOutputForward(1);
+        talon.configPeakOutputReverse(-1);
 
         talon.configAllowableClosedloopError(0, 16);
 
@@ -64,7 +64,7 @@ public class Lifter {
         talon.configContinuousCurrentLimit(20);
         talon.configPeakCurrentLimit(0);
 
-        talon.config_kP(0, 0.5);
+        talon.config_kP(0, 0.2);
         talon.config_kI(0, 0);
         talon.config_kD(0, 0);
         //talon.setStatusFramePeriod(StatusFrameEnhanced.Status_2_Feedback0, 30);
