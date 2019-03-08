@@ -165,7 +165,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         snapToAngle();
 
         if (controller.getRawButton(1)) {
-//            autoStrafer.run();
+            autoStrafer.run();
             autoStrafeDrive();
             return;
         }
