@@ -297,9 +297,9 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void spinArms(){
-        if(intakeActive && !ballSwitch){
-            leftArm.set(-.28);
-            rightArm.set(-.28);
+        if(intakeActive && ballSwitch){
+            leftArm.set(-.3);
+            rightArm.set(-.3);
         } else {
             leftArm.set(0);
             rightArm.set(0);
@@ -321,7 +321,7 @@ public class Robot extends TimedRobot implements PIDOutput {
             intakeActive = !intakeActive;
         }
 
-        if (ballSwitch) {
+        if (!ballSwitch) {
             intakeActive = false;
             armsUp = true;
         }
@@ -332,7 +332,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         }
 
         if (intakeActive) {
-            intake.set(1);
+            intake.set(0.5);
         } else if (secondary.getTriggerAxis(leftHand) > 0.05 || secondary.getTriggerAxis(rightHand) > 0.05) {
             intake.set(-1);
         } else {
