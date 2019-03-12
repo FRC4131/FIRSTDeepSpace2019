@@ -23,7 +23,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     Compressor compressor = new Compressor(61);
 
     AHRS ahrs = new AHRS(SPI.Port.kMXP);
-    private static double kPTurn = 0.0085;
+    private static double kPTurn = 0.01;
     private static double kITurn = 0.00;
     private static double kDTurn = 0.005;
     private static double kFTurn = 0.00;
@@ -73,10 +73,11 @@ public class Robot extends TimedRobot implements PIDOutput {
 
     //TODO: send vision center to network tables
     //too small - left too big - right
-    private static final double VISION_CENTER_X = 164;
+    // put the center average value in here to align
+    private static final double VISION_CENTER_X = 170;
 
     AutoStrafer autoStrafer = new AutoStrafer();
-    PIDController strafeController = new PIDController(.75, 0, 0.6, 0, autoStrafer, autoStrafer);
+    PIDController strafeController = new PIDController(1, 0, 0.6, 0, autoStrafer, autoStrafer);
 
     AutoDriver autoDriver = new AutoDriver();
     PIDController driveController = new PIDController(0.003, 0, 0.01, 0, autoDriver, autoDriver);
@@ -165,9 +166,11 @@ public class Robot extends TimedRobot implements PIDOutput {
         snapToAngle();
 
         if (controller.getRawButton(1)) {
-            autoStrafer.run();
-            autoStrafeDrive();
-            return;
+            //if (!(controller.getX(leftHand) < 0.05 || controller.getX(leftHand) > -0.05) || !(controller.getY(leftHand) < 0.05 || controller.getY(leftHand) > -0.05))  {
+                autoStrafer.run(); // leave front-back ctrl
+                autoStrafeDrive();
+                return;
+            //}
         }
 
         if (!ahrs.isConnected()) {
@@ -241,6 +244,12 @@ public class Robot extends TimedRobot implements PIDOutput {
         SmartDashboard.putNumber("pid for drive", autoDriver.pidOut);
         SmartDashboard.putNumber("center average", (hatchZeroCenterX + hatchOneCenterX) / 2);
         SmartDashboard.putNumber("center difference", hatchOneCenterX - hatchZeroCenterX);
+        SmartDashboard.putNumber("Time", Timer.getMatchTime());
+        SmartDashboard.putBoolean("Robot Connection", DriverStation.getInstance().isNewControlData());
+        SmartDashboard.putBoolean("FMS Connection", DriverStation.getInstance().isFMSAttached());
+        SmartDashboard.putNumber("Battery Voltage", RobotController.getBatteryVoltage());
+        SmartDashboard.putBoolean("Brownout", RobotController.isBrownedOut());
+        SmartDashboard.putBoolean("Compessor Enabled", compressor.enabled());
     }
 
     @Override
@@ -313,6 +322,8 @@ public class Robot extends TimedRobot implements PIDOutput {
             lifter.setTarget(-12500);
         } else if(secondary.getRawButton(3)) {
             lifter.setTarget(0);
+        } else if(secondary.getBumper(rightHand)) {
+            lifter.setTarget(-7200);
         }
     }
 
@@ -334,7 +345,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         if (intakeActive) {
             intake.set(0.5);
         } else if (secondary.getTriggerAxis(leftHand) > 0.05 || secondary.getTriggerAxis(rightHand) > 0.05) {
-            intake.set(-1);
+            intake.set(-0.75);
         } else {
             intake.set(0);
         }
