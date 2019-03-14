@@ -74,7 +74,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     //TODO: send vision center to network tables
     //too small - left too big - right
     // put the center average value in here to align
-    private static final double VISION_CENTER_X = 170;
+    private static final double VISION_CENTER_X = 186;
 
     AutoStrafer autoStrafer = new AutoStrafer();
     PIDController strafeController = new PIDController(1, 0, 0.6, 0, autoStrafer, autoStrafer);
