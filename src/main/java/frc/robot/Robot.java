@@ -74,7 +74,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     //TODO: send vision center to network tables
     //too small - left too big - right
     // put the center average value in here to align
-    private static final double VISION_CENTER_X = 186;
+    private static final double VISION_CENTER_X = 180;
 
     AutoStrafer autoStrafer = new AutoStrafer();
     PIDController strafeController = new PIDController(1, 0, 0.6, 0, autoStrafer, autoStrafer);
@@ -318,11 +318,11 @@ public class Robot extends TimedRobot implements PIDOutput {
     private void adjustElevator(){
         SmartDashboard.putNumber("elevator Encoder", elevator.getSelectedSensorPosition());
 
-        if(secondary.getRawButton(4)) {
+        if(secondary.getRawButton(4) && !ballSwitch) {
             lifter.setTarget(-12500);
         } else if(secondary.getRawButton(3)) {
             lifter.setTarget(0);
-        } else if(secondary.getBumper(rightHand)) {
+        } else if(secondary.getBumper(rightHand) && !ballSwitch) {
             lifter.setTarget(-7200);
         }
     }
