@@ -318,11 +318,11 @@ public class Robot extends TimedRobot implements PIDOutput {
     private void adjustElevator(){
         SmartDashboard.putNumber("elevator Encoder", elevator.getSelectedSensorPosition());
 
-        if(secondary.getRawButton(4) && !ballSwitch) {
+        if(secondary.getRawButton(4)) {
             lifter.setTarget(-12500);
         } else if(secondary.getRawButton(3)) {
             lifter.setTarget(0);
-        } else if(secondary.getBumper(rightHand) && !ballSwitch) {
+        } else if(secondary.getBumper(rightHand)) {
             lifter.setTarget(-7200);
         }
     }

@@ -78,4 +78,6 @@ public class Lifter {
     public void setTarget(double target) {
         this.target = target;
     }
+
+    public double getTarget() {return this.target;}
 }
