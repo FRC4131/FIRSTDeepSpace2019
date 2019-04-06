@@ -74,7 +74,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     //TODO: send vision center to network tables
     //too small - left too big - right
     // put the center average value in here to align
-    private static final double VISION_CENTER_X = 180;
+    private static final double VISION_CENTER_X = 171;
 
     AutoStrafer autoStrafer = new AutoStrafer();
     PIDController strafeController = new PIDController(1, 0, 0.6, 0, autoStrafer, autoStrafer);
@@ -109,7 +109,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         turnController.setSetpoint(0);
 
         strafeController.setOutputRange(-0.5, 0.5);
-        strafeController.setAbsoluteTolerance(5);
+//        strafeController.setAbsoluteTolerance(5);
         strafeController.setContinuous(false);
         strafeController.enable();
         strafeController.setSetpoint(0);
@@ -239,6 +239,10 @@ public class Robot extends TimedRobot implements PIDOutput {
         SmartDashboard.putNumber("hatchOneX", hatchOneCenterX);
         SmartDashboard.putNumber("hatchOneY", hatchOneCenterY);
         SmartDashboard.putNumber("hatchContours", hatchContours);
+
+        SmartDashboard.putBoolean("Strafe controller enabled", strafeController.isEnabled());
+        SmartDashboard.putNumber("Strafe cont err", strafeController.getError());
+        SmartDashboard.putNumber("autoStrafe val", autoStrafer.pidOut);
 
         SmartDashboard.putNumber("intake current", intake.getOutputCurrent());
         SmartDashboard.putNumber("pid for drive", autoDriver.pidOut);
@@ -422,6 +426,7 @@ public class Robot extends TimedRobot implements PIDOutput {
         public double pidGet() {
             double max = Math.max(hatchZeroCenterX, hatchOneCenterX);
             double min = Math.min(hatchZeroCenterX, hatchOneCenterX);
+            SmartDashboard.putNumber("vision debug", max - min);
             if (pidSourceType == PIDSourceType.kDisplacement) {
                 // assumes 0 is center of frame
                 return (VISION_CENTER_X - (max + min)/2) / (max - min);
