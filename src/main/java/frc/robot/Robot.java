@@ -322,11 +322,11 @@ public class Robot extends TimedRobot implements PIDOutput {
     private void adjustElevator(){
         SmartDashboard.putNumber("elevator Encoder", elevator.getSelectedSensorPosition());
 
-        if(secondary.getRawButton(4)) {
+        if(secondary.getRawButton(4) && !ballSwitch) {
             lifter.setTarget(-12500);
         } else if(secondary.getRawButton(3)) {
             lifter.setTarget(0);
-        } else if(secondary.getBumper(rightHand)) {
+        } else if(secondary.getBumper(rightHand) && !ballSwitch) {
             lifter.setTarget(-7200);
         }
     }
@@ -375,7 +375,7 @@ public class Robot extends TimedRobot implements PIDOutput {
     }
 
     public void driveCentric(){
-        myDrive.driveCartesian(-controller.getX(leftHand), controller.getY(leftHand), rotateToAngleRate, -ahrs.getAngle());
+        myDrive.driveCartesian(controller.getX(leftHand), -controller.getY(leftHand), rotateToAngleRate, -ahrs.getAngle());
     }
 
     public void driveStandard() {
